@@ -1,6 +1,6 @@
 ---
 name: testability-prep
-description: Use /testability-prep when a PR has been approved and needs to be prepared for test generation — checks the linked issue, reads project conventions, verifies the environment, analyzes the diff for testability barriers, applies the minimum production code change needed to remove each barrier, opens a child PR with a thorough analysis report, and creates two tracking issues.
+description: Use /testability-prep when a PR has been approved and needs to be prepared for test generation — discovers the linked issue, reads project conventions, verifies the environment, analyzes the diff for testability barriers, applies the minimum production code change needed to remove each barrier, and opens a child PR with a thorough analysis report.
 ---
 
 # testability-prep
@@ -10,9 +10,9 @@ changed or new piece of behavior in the diff:
 
 > What prevents an automated test from observing, controlling, or isolating this behavior?
 
-It then makes the **minimum production code change** needed to remove each real barrier, opens
-a child PR against the original branch with a thorough report, and creates two tracking issues.
-If no barrier is found, no PR is opened but the tracking issues are still created.
+It then makes the **minimum production code change** needed to remove each real barrier and opens
+a child PR against the original branch with a thorough report. If no barrier is found, no PR is
+opened.
 
 ---
 
@@ -50,22 +50,35 @@ assuming no pattern exists.
 
 ## Step-by-step process
 
-### Step 1 — Verify the linked issue
+### Step 1 — Discover the linked issue
 
-1. Call `execute_command` with `gh pr view <number> --json closingIssuesReferences,title,body,headRefName,baseRefName`
-   to retrieve the PR metadata.
-2. Inspect `closingIssuesReferences`. If the array is **empty** (no linked issue found):
-   - Do **not** proceed further.
-   - Report to the human:
-     > ⚠️ No linked issue found for PR #<number>. This skill requires a linked GitHub issue
-     > describing the problem this PR solves. Please link an issue (via "Closes #N" in the PR
-     > body or via the GitHub UI) and re-run.
-   - **Stop here.**
-3. If one or more issues are linked, call `execute_command` with
-   `gh issue view <issue-number> --json title,body,labels` for each linked issue and record:
-   - The problem being solved.
-   - Any acceptance criteria or test requirements mentioned.
-   - Labels that indicate issue type (bug, feature, etc.).
+The goal is to understand the problem this PR solves. Search the following sources in order,
+stopping as soon as a clear issue reference is found:
+
+1. **PR `closingIssuesReferences`** — call `execute_command` with
+   `gh pr view <number> --json closingIssuesReferences,title,body,headRefName,baseRefName,commits`
+   and inspect the `closingIssuesReferences` array.
+2. **PR body** — scan the `body` field for patterns like `Closes #N`, `Fixes #N`, `Resolves #N`,
+   or any bare `#N` reference.
+3. **PR title** — scan the `title` field for an issue number reference (e.g. `fix(#42): …`).
+4. **PR comments** — call `execute_command` with
+   `gh pr view <number> --json comments --jq '.comments[].body'`
+   and scan each comment for the same patterns.
+5. **Commit messages** — inspect the `commits` field returned in step 1 and scan each commit
+   message for `#N` references or issue URLs.
+
+**If a reference is found** in any of the above: call `execute_command` with
+`gh issue view <issue-number> --json title,body,labels` and record:
+- The problem being solved.
+- Any acceptance criteria or test requirements mentioned.
+- Labels that indicate issue type (bug, feature, etc.).
+
+**If no reference is found after all sources are exhausted**: ask the human:
+> ⚠️ No issue reference found for PR #<number> in the PR metadata, body, title, comments, or
+> commit messages. Can you provide the issue number or a brief description of the problem this
+> PR solves? (This context is used to write the testability analysis report.)
+
+Do **not** block on the human response — record whatever they provide and continue.
 
 ### Step 2 — Read established conventions and understand the project
 
@@ -74,7 +87,8 @@ Call `read_file` on each of the following, trying paths in order (stop at first 
 **TESTING.md** (test framework, helper patterns, async utilities, teardown idioms):
 - `.context/TESTING.md` → `.bob/TESTING.md` → `TESTING.md`
 
-**DEPENDENCIES.md** (HTTP client, DB client, time/UUID utilities, async primitives, UI framework):
+**DEPENDENCIES.md** (runtime dependencies, I/O clients, time/ID utilities, async primitives,
+UI framework):
 - `.context/DEPENDENCIES.md` → `.bob/DEPENDENCIES.md` → `DEPENDENCIES.md`
 
 **CONVENTIONS.md** (selector/identifier convention, naming patterns, code style):
@@ -83,8 +97,8 @@ Call `read_file` on each of the following, trying paths in order (stop at first 
 If **none** of the above exist for a given file, fall back to direct inspection:
 - `glob` with `**/*.test.*`, `**/*.spec.*`, `**/*_test.*` — pick up to 5 results and call
   `read_file` on each with range `1-80` to infer test framework and helpers.
-- `glob` with `package.json`, `go.mod`, `requirements*.txt`, `Cargo.toml` — read to identify
-  language and key dependency names.
+- `glob` the workspace root for manifest files (dependency declarations, lock files) — read
+  whichever is found to identify the primary language and key library names.
 
 Record what each file reveals. This context is used in every subsequent step.
 
@@ -93,20 +107,21 @@ Record what each file reveals. This context is used in every subsequent step.
 Before touching any code, verify that the tools and dependencies required to run the project's
 tests are present on the current machine.
 
-1. From the test framework identified in Step 2, determine the required runtime
-   (e.g. `go`, `node`/`pnpm`, `python`/`pytest`, `cargo`).
-2. Call `execute_command` to probe each required tool:
-   - Go: `go version`
-   - Node/pnpm: `node --version && pnpm --version`
-   - Python: `python --version` or `python3 --version`
-   - Rust: `cargo --version`
-3. Call `execute_command` to verify project dependencies are installed:
-   - Go: `go mod verify`
-   - Node/pnpm: check that `node_modules` exists in the relevant directory, or run
-     `pnpm install --frozen-lockfile` if not present.
-   - Python: check that the virtual environment or required packages are available.
+1. From `TESTING.md` and `DEPENDENCIES.md` gathered in Step 2, identify:
+   - The **test runner** and the command used to invoke it.
+   - The **package manager or build tool** used to install dependencies.
+   - Any **external services** required (containers, databases, object storage) and whether they
+     can be started locally.
+
+2. For each identified runtime and tool, call `execute_command` to verify it is available.
+   Use the version-check idiom natural to that tool — derive the exact command from what
+   `TESTING.md` / `DEPENDENCIES.md` revealed, not from a fixed list.
+
+3. For each dependency set, call `execute_command` to verify dependencies are installed or can
+   be installed. Use the install/verify command that `TESTING.md` or the manifest file specifies.
+
 4. **If any required tool is missing or dependencies cannot be installed**, abort:
-   > ⚠️ Cannot proceed — required runtime/dependency not available: <tool name and version>.
+   > ⚠️ Cannot proceed — required runtime or dependency not available: <name>.
    > Please install it and re-run.
    Do **not** make any code changes or open any PR.
 
@@ -214,7 +229,8 @@ The report must contain the following sections:
 ## Testability Analysis for PR #<N> — <original PR title>
 
 ### Problem context
-<1–2 sentences from the linked issue describing the problem this PR solves.>
+<1–2 sentences from the linked issue (or human-provided description) explaining what
+problem this PR solves and why it matters.>
 
 ### What the PR introduces
 <Brief description of the behavioral change, derived from the diff.>
@@ -227,7 +243,7 @@ For each barrier:
 | | |
 |---|---|
 | **Location** | `<file>:<line range>` |
-| **Barrier type** | <A1–A9 or B1–BN with one-line description> |
+| **Barrier type** | <barrier ID with one-line description> |
 | **Blocked test** | <the specific test that was impossible> |
 | **Fix applied** | <the exact change made and why it is the minimum needed> |
 | **Now possible** | <the test that can now be written, in one sentence> |
@@ -264,110 +280,8 @@ If no barriers were found (and the gate check passed with zero surviving changes
 open a PR. Report:
 > No testability barriers found in this diff. The behavior introduced can be observed,
 > controlled, and isolated by an automated test without any production code change.
-Then proceed to Step 11 to create the tracking issues regardless.
 
-### Step 11 — Create tracking issues
-
-Create **two** GitHub issues on the repository using `gh issue create`.
-
-#### Issue 1 — Testability run tracker (required)
-
-This issue records the run in a machine-readable format so that a downstream agent can
-discover which approved PRs still need test coverage written.
-
-Generate a UUID for this run:
-
-```bash
-python3 -c "import uuid; print(uuid.uuid4())"
-```
-
-Then create the issue:
-
-```bash
-gh issue create \
-  --title "testability-run: <UUID> — #<original-PR-number> <original-PR-title>" \
-  --label "testability-run" \
-  --body-file - <<'EOF'
-## Testability Run Record
-
-| Field | Value |
-|---|---|
-| **Run ID (UUID)** | <UUID> |
-| **State** | `tests_not_yet_implemented` |
-| **PR link** | <URL of the original approved PR> |
-| **Testability PR** | <URL of the child PR opened in Step 10, or "none — no barriers found"> |
-| **Barriers resolved** | <comma-separated list of barrier IDs, or "none"> |
-| **Date** | <today YYYY-MM-DD> |
-
-## Schema
-
-```json
-{
-  "pk": "<UUID>",
-  "state": "tests_not_yet_implemented",
-  "pr_link": "<original PR URL>",
-  "testability_pr_link": "<child PR URL or null>",
-  "barriers_resolved": ["<B1>", "<B2>"]
-}
-```
-
-## State transitions
-
-| State | Meaning |
-|---|---|
-| `tests_not_yet_implemented` | Testability prep done; test generation not yet started |
-| `tests_in_progress` | A test-generation agent is actively writing tests for this run |
-| `tests_implemented` | All test layers have been written and the test PR merged |
-| `tests_verified` | Tests pass in CI and coverage gate is satisfied |
-
-## Notes
-
-A downstream agent discovering this issue should:
-1. Filter issues with label `testability-run` and state `tests_not_yet_implemented`.
-2. Read the `PR link` to understand what feature or fix needs test coverage.
-3. Read the `Testability PR` to understand which barriers were removed and what tests are now possible.
-4. Update this issue's state to `tests_in_progress` before starting, to prevent duplicate work.
-EOF
-```
-
-#### Issue 2 — CI/GitHub Actions environment tracker (nice to have)
-
-This issue tracks whether the test suite can run cleanly in the GitHub Actions environment,
-so that test generation work targets a verified execution context.
-
-```bash
-gh issue create \
-  --title "ci-env: verify test suite runs in GitHub Actions for run <UUID>" \
-  --label "ci-tracking" \
-  --body-file - <<'EOF'
-## CI Environment Verification
-
-Linked to testability run: <UUID>
-Original PR: <URL of the original approved PR>
-
-### Purpose
-
-When running test generation via watsonx.orchestrate and GitHub Actions, we need to confirm
-that the test suite executes cleanly in the Actions environment before generated tests are
-committed. This issue tracks that verification.
-
-### Checklist
-
-- [ ] Runtime version matches `TESTING.md` / `go.mod` / `package.json` `engines`
-- [ ] All dependencies install without errors (`go mod verify` / `pnpm install --frozen-lockfile`)
-- [ ] Existing test suite passes on the PR's head branch in Actions
-- [ ] No environment-specific test skips (`SKIP_CONTAINER_TESTS`, `CI=true` guards) block the new tests
-- [ ] Coverage upload (Codecov / similar) configured and reachable from Actions
-
-### Resolution
-
-Close this issue once a successful Actions run on the testability branch confirms the above.
-EOF
-```
-
-After creating both issues, print their URLs in the chat summary.
-
-### Step 12 — Final summary
+### Step 11 — Final summary
 
 Print a structured summary to the chat:
 
@@ -375,7 +289,7 @@ Print a structured summary to the chat:
 ## testability-prep — run complete
 
 Original PR:        #<N> <title> (<URL>)
-Linked issue:       #<issue-N> <title>
+Linked issue:       #<issue-N> <title>  (or: "none found — human-provided context used")
 Testability branch: testability/<original-branch>
 
 ### Barriers
@@ -383,9 +297,19 @@ Testability branch: testability/<original-branch>
   (or: No barriers found)
 
 ### Child PR
-  <URL> (or: not opened — no barriers)
+  <URL> (or: not opened — no barriers found)
 
-### Tracking issues
-  Issue 1 (run tracker): <URL>  run ID: <UUID>
-  Issue 2 (CI tracker):  <URL>  (nice to have)
+### Testability improvement metrics
+  Barriers found:    <N>
+  Barriers fixed:    <N>
+  Barriers discarded: <N> (<one-line reason for each discarded barrier>)
+
+  Observability gain:   <what can now be located/asserted that could not before>
+  Controllability gain: <what can now be injected/substituted that could not before>
+  Isolation gain:       <what is now reset/scoped per-test that was not before>
+  Determinism gain:     <what is now deterministic that was not before>
+                        (omit any axis where no improvement was made)
+
+  Overall assessment: <one sentence — e.g. "Two time-coupling barriers removed; the
+  PR's core logic is now fully unit-testable without real-clock dependency.">
 ```
