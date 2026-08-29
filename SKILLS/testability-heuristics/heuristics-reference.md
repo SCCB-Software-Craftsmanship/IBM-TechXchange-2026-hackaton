@@ -1,158 +1,267 @@
-# Heuristics Reference
+# Heuristics Reference — Reasoning Guide
 
-> **This is a universal, framework-agnostic reference.**
-> It is **not** read directly during diff analysis.
-> The `testability-heuristics` skill uses it as a base to generate `.bob/HEURISTICS.md`,
-> which is the file that `testability-prep` reads. Every description, signal, and fix in
-> this file is intentionally abstract — no language keywords, no framework names, no
-> concrete API calls. Concretization happens at skill-invocation time using the project
-> context gathered from `analyze-codebase` outputs.
+> **This is a reasoning guide, not a checklist.**
+> Do not iterate over it top-to-bottom and apply every section.
+> The `testability-heuristics` skill reads it to learn *how to think* about testability,
+> then derives barriers bottom-up from what it finds in the project.
+> Only barriers with concrete evidence in the project appear in `.bob/HEURISTICS.md`.
 
 ---
 
-## How to use this reference
+## How to use this guide
 
-This file is consumed by the `testability-heuristics` skill (Sub-task 2 of the skill
-authoring pipeline). When that skill runs:
+1. Read the project context (`TESTING.md`, `CONVENTIONS.md`, `DEPENDENCIES.md`,
+   `ARCHITECTURE.md`) to build a picture of what the project actually does.
+2. For each **diagnostic dimension** below, check whether the project context contains
+   evidence of that shape of problem.
+3. If evidence exists, produce one barrier entry — written in project-specific terms,
+   citing the evidence that confirmed it.
+4. If no evidence exists for a dimension, produce nothing. Do not list it as skipped.
+   Absence is not a finding.
 
-1. It reads this file in full.
-2. For each barrier A1–A9, it applies the **Adaptation hint** row together with the
-   gathered project context (`TESTING.md`, `CONVENTIONS.md`, `DEPENDENCIES.md`,
-   `ARCHITECTURE.md`) to rewrite the Description, Signal, and Minimum fix rows using
-   concrete project-specific terms.
-3. It omits barriers that have no plausible signal in the project, listing them in a
-   "Skipped barriers" section with a one-line reason.
-4. It writes the result to `.bob/HEURISTICS.md` — without the Adaptation hint rows.
-
-Do not skip this translation step. Applying abstract barrier descriptions directly to a
-diff produces false positives and misses project-specific manifestations.
+**The output barrier count is determined by the project, not by this document.**
+A pure API service with no UI, no async fire-and-forget, and no global state might produce
+2 barriers. A React + Node monorepo with background jobs might produce 7. Both are correct.
 
 ---
 
-## Barrier A1 — Unstable or missing observable locator
+## Diagnostic Dimension 1 — Observability
 
-| | |
-|---|---|
-| **Description** | A new or changed interactive or observable element in the output layer has no stable, test-addressable identifier. The element can only be located by its position, generated content, or volatile rendering detail — all of which change without notice. |
-| **Signal** | A new interactive or presentational element is added to the output layer with no accessible semantic label (role, visible text) and no explicit test identifier attribute. The element's only distinguishing quality is its position in the rendered tree or a dynamically generated value. |
-| **Minimum fix** | Add the project's established test identifier attribute to the element, following the convention already in use across the codebase. If no convention exists, introduce the simplest stable identifier that uniquely scopes the element to its feature context. Add only what is missing — never add a second identifier attribute when one already exists. |
-| **Do NOT do** | Add multiple competing identifier attributes to the same element. Wrap the element in a new component solely to expose it. Rename or restructure existing elements beyond adding the identifier. Introduce a new identifier convention when the project already has one. |
-| **Blocked test (example)** | An end-to-end test that interacts with the element — impossible without a stable locator when no accessible label or stable identifier is present. |
-| **Adaptation hint** | Replace "test identifier attribute" with the specific attribute convention the project uses (found in `CONVENTIONS.md` or inferred from existing test files, e.g. `data-testid`, `data-cy`, `aria-label`). Replace "output layer" with the project's rendering technology (e.g. "React component", "Django template", "HTML partial"). |
+*Can a test locate and read the output of the changed behavior?*
 
----
+A barrier exists in this dimension when new output is produced but a test has no stable,
+project-consistent way to address it.
 
-## Barrier A2 — Uncontrollable time or non-deterministic value source
+### Evidence pattern 1-A: UI layer present, no stable locator convention on new elements
 
-| | |
-|---|---|
-| **Description** | New logic calls a time source, sequence generator, or non-deterministic value producer directly inside the unit body. The value used is invisible to the caller and cannot be controlled or observed by a test, making correctness assertions on time- or identity-sensitive behavior impossible. |
-| **Signal** | A new function or branch whose correctness depends on the current instant or a generated unique value, where the source is called as a direct expression inside the function body with no way to substitute a known value. |
-| **Minimum fix** | Accept the time source or value generator as an optional parameter with the real source as the default. One extra parameter only — no new type, no new interface, no structural change to the call site unless the call site already passes dependencies that way. |
-| **Do NOT do** | Introduce a provider type, a clock interface, a strategy object, or any dependency injection mechanism unless the codebase already uses that exact pattern for this purpose. Split the function. Rename the function. Extract a secondary function just to hold the call. |
-| **Blocked test (example)** | A unit test that verifies the unit produces the correct output for a known reference instant or value — impossible when the source is hard-coded inside the function body. |
-| **Adaptation hint** | Replace "time source" with the specific call used in the project (e.g. `time.Now()`, `Date.now()`, `datetime.now()`). Replace "value generator" with the project's identity or randomness source (e.g. `uuid()`, `crypto.randomUUID()`, `rand.Int()`). Replace "optional parameter" with the idiomatic optional-argument pattern for the project's language (variadic, default argument, nil-check, etc.). |
+**Look for in project context:**
+- A UI framework name in `DEPENDENCIES.md` (React, Vue, Angular, Svelte, Django templates,
+  ERB, Jinja, etc.)
+- An established selector convention in `CONVENTIONS.md` (e.g. `data-testid`, `data-cy`,
+  `aria-label`) **or** its absence (no convention yet)
 
----
+**Signal in diff:** A new interactive or presentational element is added with no accessible
+semantic label (role, visible text) and no test identifier attribute matching the project's
+convention. The only way to locate it is by position or generated content.
 
-## Barrier A3 — Coupled I/O boundary
+**Minimum fix shape:** Add the project's established test identifier attribute to the
+element. If no convention exists, add the simplest stable identifier that is unique to the
+feature. One attribute only — never add a second one alongside an existing identifier.
 
-| | |
-|---|---|
-| **Description** | New business logic is directly coupled to a real external resource — a network service, a data store, or the file system — initiated inside the function body. The unit's observable output depends entirely on the response of that resource, making it impossible to assert correct behavior for a given response without operating the real resource. |
-| **Signal** | A new or changed function whose return value or side effect depends on the result of an I/O call initiated inside the function body, where no mechanism exists to substitute a controlled response. |
-| **Minimum fix** | Accept the I/O boundary as a parameter — a function value, a thin callable, or (only if the codebase already uses constructor injection for this purpose) a constructor field. Use the simplest type the existing call site already accepts. The default value must be the real I/O client so call sites require no change. |
-| **Do NOT do** | Introduce a repository pattern, a service layer, an interface hierarchy, or any architectural restructuring beyond the single parameter needed to make the boundary substitutable. Do not add a mock or stub to production code. |
-| **Blocked test (example)** | A unit test that verifies the function returns the correct result for a controlled response (e.g. empty result, error, specific payload) — impossible without being able to substitute the I/O boundary. |
-| **Adaptation hint** | Replace "I/O call" and "the I/O client" with the specific client or call the project uses (e.g. `db.query`, `axios.get`, `fetch`, `os.ReadFile`, `requests.get`), found in `DEPENDENCIES.md` or the diff itself. Replace "constructor injection" with the dependency injection style already used in the project (found in `ARCHITECTURE.md`). |
+**Do NOT do:** Add competing identifier attributes "just in case". Wrap the element in a
+new component solely to expose it. Rename existing elements beyond adding the attribute.
 
 ---
 
-## Barrier A4 — Missing deterministic fixture or test data
+### Evidence pattern 1-B: Backend behavior present, no contract definition file
 
-| | |
-|---|---|
-| **Description** | New behavior depends on a named external data artifact — a seed record, a configuration entry, a static file, or a fixture — that does not exist in the test environment. The test either fails non-deterministically, requires manual environment setup, or is silently skipped because the precondition is never met. |
-| **Signal** | A new code path reads a named record, a configuration key, or a file path that is not present in any existing test fixture, seed script, or test configuration file tracked in the repository. |
-| **Minimum fix** | Add the minimum fixture entry needed by the new path — the single seed row, configuration key, or file content the new behavior requires. Match the format and location of adjacent entries exactly. Do not rewrite the seeding strategy or change the fixture format. |
-| **Do NOT do** | Rewrite the seeding strategy. Change the fixture format. Abstract the data layer to avoid needing a fixture. Add test data to the production database or configuration. |
-| **Blocked test (example)** | A unit or integration test for the new code path — fails with a missing-key or not-found error without the fixture entry. |
-| **Adaptation hint** | Replace "configuration key", "seed record", and "fixture" with the specific data artifacts the project uses (e.g. `config["feature_flags"]["x"]`, a factory-created record in the test database, a JSON fixture file under `testdata/`), found by inspecting the project's test helpers in `TESTING.md` and existing test files. |
+**Look for in project context:**
+- Route handlers, event emitters, or message producers in the diff
+- Absence of a contract file in `ARCHITECTURE.md` (no `openapi.yaml`, no `.proto`, no
+  AsyncAPI spec, no JSON Schema file tracked in the repository)
 
----
+**Signal in diff:** A new handler or producer is added whose input/output shape has no
+matching entry in any contract file tracked in the repository.
 
-## Barrier A5 — Missing or mismatched behavioral contract
+**Minimum fix shape:** Add the minimum schema entry that describes the new behavior —
+path + operation for REST, message type + fields for events. Match the style and detail
+level of adjacent entries. Do not introduce a new contract format.
 
-| | |
-|---|---|
-| **Description** | A new or changed externally-visible behavior — an endpoint, an event, a message, a public API — has no corresponding entry in the repository's contract definition. Contract tests, generated clients, or downstream consumers cannot be written or updated because the expected shape has never been formally described. |
-| **Signal** | A new handler, emitter, or producer is added whose input/output shape has no matching entry in any contract definition file tracked in the repository. |
-| **Minimum fix** | Add the minimum schema entry that describes the new behavior — the path and operation for a REST endpoint, the message type and fields for an event or message schema. Match the style and level of detail of adjacent entries in the same contract file. Do not introduce a new contract format. |
-| **Do NOT do** | Refactor the entire contract file. Add client-side type definitions (those belong to test generation, not testability prep). Change the contract format or tooling. Add entries for behaviors that already have definitions. |
-| **Blocked test (example)** | A contract test that validates the shape of the new behavior's output — cannot be generated without a schema definition. |
-| **Adaptation hint** | Replace "contract definition file" with the specific file and format the project uses (e.g. `openapi.yaml`, a `.proto` file, a JSON Schema file, an AsyncAPI spec), found in `ARCHITECTURE.md` or by searching the repository. Replace "handler/emitter/producer" with the project-specific terms. |
+**Do NOT do:** Refactor the entire contract file. Add client-side type definitions. Change
+the contract format or tooling.
 
 ---
 
-## Barrier A6 — Uncontrollable async boundary
+## Diagnostic Dimension 2 — Controllability
 
-| | |
-|---|---|
-| **Description** | A deferred or concurrent operation is initiated inside the unit body, but the mechanism that schedules, resolves, or completes it is not accessible to the caller. A test cannot await completion deterministically, inject a controlled outcome, or cancel the operation — making assertions on the operation's effects timing-dependent and flaky. |
-| **Signal** | A new function or method fires a deferred operation (a scheduled callback, a background worker, a fire-and-forget call, a timer-based trigger) and returns before the operation completes, with no handle, cancellation token, or completion signal available to the caller. |
-| **Minimum fix** | Return a completion handle (a promise, a future, a channel, a done signal) or accept a completion callback as an optional parameter so a test can await or synchronize with the operation. If the operation is timer-driven, apply Barrier A2's fix first (injectable time source) so the timer can be controlled. |
-| **Do NOT do** | Introduce a background worker framework, a queue, or an event bus solely to make the operation observable. Add polling or sleep calls inside tests. Hard-code synchronization delays in production code. |
-| **Blocked test (example)** | A unit test that asserts the operation's side effect occurred after the triggering call — impossible without a deterministic completion signal. |
-| **Adaptation hint** | Replace "completion handle" with the idiomatic async primitive the project uses (e.g. `Promise`, `Future`, channel, `async/await`, `WaitGroup`), found in `TESTING.md` and existing async code in the diff. Replace "timer-driven" with the specific scheduling mechanism used (e.g. `setTimeout`, `time.AfterFunc`, `celery.delay`). |
+*Can a test supply a known input or substitute a dependency?*
 
----
+A barrier exists in this dimension when the behavior under test has a dependency that is
+resolved inside the function body, making it impossible for a test to control the outcome.
 
-## Barrier A7 — Global or singleton state mutation
+### Evidence pattern 2-A: I/O client found, used directly inside function bodies
 
-| | |
-|---|---|
-| **Description** | The tested unit writes to mutable state that lives at module, process, or singleton scope. Because this state persists across test executions, the outcome of one test affects subsequent tests, making the suite order-dependent and individual tests non-isolatable. |
-| **Signal** | A new code path assigns to, appends to, or mutates a variable, registry, cache, or counter that is declared at module or process scope and is not reset between test runs by any existing teardown mechanism. |
-| **Minimum fix** | Either (a) pass the state container as a parameter (same pattern as Barrier A3) so each test can supply an isolated instance, or (b) expose a reset or clear function that test teardown can call — whichever is the smaller change. If the state is an append-only registry, ensure entries added during a test are removed in teardown. |
-| **Do NOT do** | Introduce a global state management library. Redesign the module to avoid global state entirely. Add test-only conditionals that skip state mutation in test environments. |
-| **Blocked test (example)** | Any unit test that relies on the initial value of the shared state — fails or produces wrong results when run after a test that mutates it. |
-| **Adaptation hint** | Replace "module scope" with the language-specific concept (e.g. package-level variable in Go, module-level variable in Python, closure variable in Node.js, static field in Java). Replace "reset or clear function" with the idiomatic teardown pattern the project already uses (found in `TESTING.md`, e.g. `afterEach`, `defer`, `addCleanup`). |
+**Look for in project context:**
+- An HTTP client, database client, or filesystem API in `DEPENDENCIES.md`
+  (e.g. `axios`, `fetch`, `pg`, `mysql2`, `knex`, `prisma`, `fs`, `requests`, `boto3`)
 
----
+**Signal in diff:** A new or changed function whose return value or side effect depends on
+the result of an I/O call initiated inside the function body, with no mechanism to substitute
+a controlled response.
 
-## Barrier A8 — Environment or configuration coupling
+**Minimum fix shape:** Accept the I/O client (or the specific method used) as a parameter
+with the real client as the default. One parameter only. Use the simplest type the call site
+already accepts — a function value is preferred over an interface unless the codebase already
+uses interfaces for this.
 
-| | |
-|---|---|
-| **Description** | New behavior branches on a value read directly from the process environment or from a global configuration object that is populated once at startup. There is no override path for tests to supply a known value, so the behavior exercised by a test depends on whatever the CI environment or local machine happens to have set. |
-| **Signal** | A new conditional branch or default value is derived from a direct read of the process environment or a global config accessor, with no parameter, option, or override mechanism available to callers. |
-| **Minimum fix** | Accept the configuration value as a parameter with the environment/config read as the default — one extra parameter, same pattern as Barrier A2. Alternatively, if the project already has a configuration injection pattern (e.g. a config struct passed to a constructor), route the value through that existing path instead of reading the environment directly. |
-| **Do NOT do** | Create a configuration abstraction layer. Introduce a settings object or a configuration provider type unless the codebase already uses one. Modify the environment inside a test (that leaks to other tests). |
-| **Blocked test (example)** | A unit test that verifies behavior for a specific configuration value — impossible without being able to supply that value without modifying the real environment. |
-| **Adaptation hint** | Replace "process environment" with the project's specific mechanism (e.g. `os.Getenv`, `process.env`, `os.environ`, `System.getenv`). Replace "global config accessor" with the project's actual config object (found in `ARCHITECTURE.md` or `CONVENTIONS.md`). Replace "configuration injection pattern" with the project's existing approach if one exists. |
+**Do NOT do:** Introduce a repository pattern, service layer, interface hierarchy, or any
+structural change beyond the single parameter.
 
 ---
 
-## Barrier A9 — Opaque initialization side effect
+### Evidence pattern 2-B: Time or randomness source used directly inside function bodies
 
-| | |
-|---|---|
-| **Description** | The module or object performs observable side effects — registrations, I/O calls, cache population, global state mutation — at load or construction time, before any test can establish preconditions. These effects cannot be suppressed, deferred, or observed in isolation, so every test that imports or instantiates the unit inherits an uncontrolled initial state. |
-| **Signal** | A new module-level statement or constructor body performs a side-effectful operation (registers a handler, opens a connection, writes to a global registry, starts a background process) that executes unconditionally at import or instantiation time, with no flag or option to suppress or defer it. |
-| **Minimum fix** | Move the side effect into an explicit initialization function that the caller invokes after construction, or guard it behind a parameter/option that defaults to the production behavior but can be suppressed in tests. The change must be limited to deferring or conditionally suppressing the specific side effect — do not restructure the module. |
-| **Do NOT do** | Convert the module to a class solely to add a constructor option. Introduce a lazy-loading framework. Move the side effect to a global setup that all tests must call. Add test-only environment checks inside the production initialization path. |
-| **Blocked test (example)** | A unit test that imports or instantiates the module to test its primary logic — the side effect fires unconditionally and contaminates the test environment before the test body runs. |
-| **Adaptation hint** | Replace "module-level statement" with the language-specific concept (e.g. `init()` in Go, module-level code in Python, top-level statement in a Node.js module, static initializer in Java/Kotlin). Replace "explicit initialization function" with the idiomatic late-initialization pattern for the project's language (found by inspecting existing module patterns in the diff or `ARCHITECTURE.md`). |
+**Look for in project context:**
+- A time API or randomness/ID generator in `DEPENDENCIES.md` or inferable from the language
+  (e.g. `Date.now`, `new Date()`, `time.Now()`, `datetime.now()`, `uuid()`,
+  `crypto.randomUUID()`, `rand.Int()`, `Math.random()`)
+
+**Signal in diff:** A new function or branch whose correctness depends on the current instant
+or a generated unique value, where the source is called as a direct expression inside the
+function body with no way to substitute a known value.
+
+**Minimum fix shape:** Accept the time source or generator as an optional parameter with the
+real source as the default. One parameter only — no new type, no interface, no structural
+change unless the call site already passes dependencies that way.
+
+**Do NOT do:** Introduce a clock interface, a TimeProvider type, a strategy object, or any
+DI mechanism not already present in the codebase. Split or rename the function.
 
 ---
 
-## Quick-reference decision table
+### Evidence pattern 2-C: Async fire-and-forget operations present
 
-| Barrier present? | Concrete blocked test named? | Action |
-|---|---|---|
-| Yes | Yes | Adapt using Adaptation hint → apply minimum fix → commit → include in PR |
-| Yes | No | Discard — cannot justify the change |
-| No | — | No action |
+**Look for in project context:**
+- Timer-based or deferred execution patterns in `DEPENDENCIES.md` or `ARCHITECTURE.md`
+  (e.g. `setTimeout`, `setInterval`, `time.AfterFunc`, `celery.delay`, `sidekiq`,
+  `BullMQ`, background workers)
+- Functions that start work and return before it completes, with no handle exposed
 
-When in doubt, discard. A change that ships without justification makes the codebase harder to
-reason about for no gain.
+**Signal in diff:** A new function fires a deferred or concurrent operation and returns
+before it completes, with no promise, channel, callback, or cancellation token available
+to the caller.
+
+**Minimum fix shape:** Return a completion handle (Promise, Future, channel) or accept a
+completion callback as an optional parameter. If timer-driven, apply the time-source fix
+(Evidence pattern 2-B) first so the timer can be controlled.
+
+**Do NOT do:** Introduce a queue, event bus, or worker framework solely to make the
+operation observable. Add polling or sleep calls in tests. Hard-code delays.
+
+---
+
+### Evidence pattern 2-D: Config or environment read directly inside function bodies
+
+**Look for in project context:**
+- Direct environment access in `ARCHITECTURE.md` or `CONVENTIONS.md`
+  (e.g. `process.env`, `os.Getenv`, `os.environ`, `System.getenv`)
+- A global config object populated once at startup, with no injection mechanism
+
+**Signal in diff:** A new conditional branch or default value is derived from a direct read
+of the process environment or a global config accessor, with no parameter or override
+mechanism available to callers.
+
+**Minimum fix shape:** Accept the config value as an optional parameter with the
+environment/config read as the default — one extra parameter, same pattern as 2-B.
+If the project already has a config-injection pattern (a config struct, a settings object),
+route the value through that existing path.
+
+**Do NOT do:** Create a configuration abstraction layer. Introduce a settings provider type
+unless the codebase already has one. Modify the environment inside a test.
+
+---
+
+## Diagnostic Dimension 3 — Isolation
+
+*Does the unit's behavior depend on state it does not own?*
+
+A barrier exists in this dimension when shared state or initialization side effects mean
+that one test's execution affects another, or that a test inherits an uncontrolled starting
+condition.
+
+### Evidence pattern 3-A: Mutable state at module or process scope
+
+**Look for in project context:**
+- Module-level variables, singletons, registries, or caches in the codebase
+- Language-specific patterns: package-level variables (Go), module-level variables (Python),
+  closure variables (Node.js), static fields (Java/Kotlin)
+- Teardown idiom in `TESTING.md` (e.g. `afterEach`, `defer`, `addCleanup`, `t.Cleanup`)
+
+**Signal in diff:** A new code path assigns to, appends to, or mutates a variable, registry,
+cache, or counter declared at module or process scope, not reset between tests by any
+existing teardown.
+
+**Minimum fix shape:** Either (a) pass the state container as a parameter so each test
+supplies an isolated instance, or (b) expose a reset/clear function that test teardown can
+call — whichever is the smaller change. Use the teardown idiom already in the project.
+
+**Do NOT do:** Introduce a global state management library. Redesign the module to avoid
+global state entirely. Add test-only conditionals that skip mutation in test environments.
+
+---
+
+### Evidence pattern 3-B: Observable side effects at module load or construction time
+
+**Look for in project context:**
+- Module-level initialization patterns: `init()` (Go), top-level statements (Node.js/Python),
+  static initializers (Java/Kotlin), `__init_subclass__` (Python)
+- Side-effectful operations at module scope: handler registration, connection opening,
+  cache population, background process startup
+
+**Signal in diff:** A new module-level statement or constructor body performs a side-effectful
+operation that executes unconditionally at import or instantiation time, with no option to
+suppress or defer it.
+
+**Minimum fix shape:** Move the side effect into an explicit initialization function the
+caller invokes after construction, or guard it behind a parameter that defaults to the
+production behavior but can be suppressed. Change only the specific side effect — do not
+restructure the module.
+
+**Do NOT do:** Convert a module to a class solely to add a constructor option. Introduce a
+lazy-loading framework. Move the side effect to a global test setup.
+
+---
+
+### Evidence pattern 3-C: Test behavior depends on data artifacts not in the test environment
+
+**Look for in project context:**
+- Test data strategy in `TESTING.md` (factories, seed scripts, fixture files, in-memory DBs)
+- Named records, configuration keys, or file paths read by new code paths
+
+**Signal in diff:** A new code path reads a named record, configuration key, or file path
+that is not present in any existing test fixture, seed script, or test configuration file
+tracked in the repository.
+
+**Minimum fix shape:** Add the minimum fixture entry — the single seed row, config key, or
+file content the new behavior requires. Match the format and location of adjacent entries
+exactly. Add only what the new path needs.
+
+**Do NOT do:** Rewrite the seeding strategy. Change the fixture format. Abstract the data
+layer to avoid needing a fixture.
+
+---
+
+## Diagnostic Dimension 4 — Determinism
+
+*Does the unit produce the same output for the same input on every run?*
+
+This dimension overlaps with Controllability (2-B) and Isolation (3-A). Check it
+separately only when a source of non-determinism is present that is not already covered
+by an evidence pattern above.
+
+**Look for in project context:**
+- Any dependency on external state that is not injected and not reset between tests
+- Any call whose return value changes between invocations for the same input
+
+If a non-determinism source is found that does not match 2-B (time/randomness) or 3-A
+(global state), derive a new barrier entry specific to that source with the same structure:
+Signal, Minimum fix shape, Do NOT do.
+
+---
+
+## Derivation instruction
+
+After checking all four dimensions against the project context:
+
+1. Produce one barrier entry per confirmed evidence pattern. Number them B1, B2, B3… in
+   the order you found them.
+2. Each entry must include an **Evidence** field naming exactly what was found in the project
+   context (e.g. "axios 1.x found in DEPENDENCIES.md", "no openapi.yaml found in repository").
+3. If the project shows a pattern of untestability that does not fit any dimension above,
+   derive a new barrier entry for it. Use the same structure: Signal, Minimum fix shape,
+   Do NOT do, Evidence.
+4. If no evidence is found for a dimension, write nothing. There is no "skipped" list.
+
+**The final test:** every barrier in `.bob/HEURISTICS.md` must be answerable with:
+*"I know this barrier exists because I found [specific evidence] in this project."*
+If it cannot be answered that way, remove the barrier.

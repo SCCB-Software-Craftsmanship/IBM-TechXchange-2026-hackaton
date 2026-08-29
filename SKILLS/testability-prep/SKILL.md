@@ -74,22 +74,19 @@ on each with a limited line range (e.g. `1-80`) — do not read entire files or 
 
 ### Step 3 — Identify barriers
 
-Load the barrier checklist using the following three-tier lookup — use the first tier that
-succeeds and skip the remaining tiers:
+Load the barrier checklist using the following two-tier lookup — use the first tier that
+succeeds and skip the remaining tier:
 
 1. **Project-adapted checklist (preferred):** Call `read_file` on `.bob/HEURISTICS.md`.
    If the file exists, use it as the barrier checklist directly — it is already concretized
    for this project's stack and libraries. No further filtering or adaptation is needed.
 
 2. **Universal reference (fallback):** Call `read_file` on
-   `SKILLS/testability-heuristics/heuristics-reference.md`. If the file exists, apply
-   lightweight filtering before scanning: for each barrier A1–A9, check whether the diff
-   contains file types or patterns that could plausibly exhibit that barrier (e.g. skip A1
-   if the diff contains no UI files; skip A6 if no async operations are visible). Use only
-   the barriers that survive this check.
-
-3. **Legacy checklist (last resort):** Call `read_file` on
-   `SKILLS/testability-prep/seams-reference.md` and use it as-is.
+   `SKILLS/testability-heuristics/heuristics-reference.md`. Apply lightweight filtering
+   before scanning: for each barrier A1–A9, check whether the diff contains file types or
+   patterns that could plausibly exhibit that barrier (e.g. skip A1 if the diff contains no
+   UI files; skip A6 if no async operations are visible). Use only the barriers that survive
+   this check.
 
 With the checklist loaded, ask for every changed or new section in the diff:
 
@@ -98,7 +95,7 @@ With the checklist loaded, ask for every changed or new section in the diff:
 Only barriers that block a concrete, nameable test qualify. Record each barrier as:
 
 - **Location** — file and line range in the diff.
-- **Barrier type** — one of the barrier IDs from the loaded checklist (A1–A9 for the new reference, or one of the five types if using the legacy `seams-reference.md`).
+- **Barrier type** — one of the barrier IDs from the loaded checklist (A1–A9).
 - **Blocked test** — a one-sentence description of the specific test that is currently
   impossible without a fix.
 

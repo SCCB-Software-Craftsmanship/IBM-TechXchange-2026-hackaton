@@ -2,29 +2,19 @@
 
 ## What this skill does
 
-`testability-heuristics` reads the project context already produced by `analyze-codebase`
-(`TESTING.md`, `CONVENTIONS.md`, `DEPENDENCIES.md`, `ARCHITECTURE.md`) and translates a
-universal barrier reference into a concrete, project-adapted `.bob/HEURISTICS.md` — replacing
-abstract descriptions ("the I/O client", "the time source") with the real library names,
-idioms, and file paths found in this specific repository.
+`testability-heuristics` reads the project context produced by `analyze-codebase`
+(`TESTING.md`, `CONVENTIONS.md`, `DEPENDENCIES.md`, `ARCHITECTURE.md`) and **derives**
+a set of concrete testability barriers grounded in what this repository actually does.
 
-The universal reference (`heuristics-reference.md`) defines nine testability barrier types:
+Rather than translating a fixed list of barrier types, the skill builds an evidence
+inventory from the project context and produces one barrier entry per confirmed evidence
+pattern. A project with no UI layer produces no UI-locator barrier. A project with no
+background workers produces no async-boundary barrier. The barrier count and content are
+determined entirely by what is found — not by a preset taxonomy.
 
-| ID | Barrier |
-|---|---|
-| A1 | Unstable or missing observable locator |
-| A2 | Uncontrollable time or non-deterministic value source |
-| A3 | Coupled I/O boundary |
-| A4 | Missing deterministic fixture or test data |
-| A5 | Missing or mismatched behavioral contract |
-| A6 | Uncontrollable async boundary |
-| A7 | Global or singleton state mutation |
-| A8 | Environment or configuration coupling |
-| A9 | Opaque initialization side effect |
-
-The generated `.bob/HEURISTICS.md` contains only the barriers relevant to this project,
-each rewritten in concrete project-specific terms. Barriers with no plausible signal in the
-project are omitted and listed in a "Skipped barriers" section with a one-line reason.
+Each barrier in the generated `.bob/HEURISTICS.md` includes an **Evidence** field that
+names the specific artifact (library, pattern, file, or absence of file) that confirmed
+the barrier exists in this project.
 
 The generated file is what `testability-prep` reads during Step 3 (Identify barriers) — it
 never needs further interpretation.
@@ -44,7 +34,8 @@ running `analyze-codebase` first produces richer adaptation because all four kno
 (`TESTING.md`, `CONVENTIONS.md`, `DEPENDENCIES.md`, `ARCHITECTURE.md`) are available.
 
 Re-run `testability-heuristics` whenever the project's primary dependencies, language, or
-test framework change. The generated `.bob/HEURISTICS.md` is overwritten completely on each run.
+test framework change. The generated `.bob/HEURISTICS.md` is overwritten completely on each run,
+re-deriving barriers from the current evidence.
 
 ## Installation
 
@@ -75,14 +66,13 @@ Bob will:
 
 ## Relationship to `testability-prep`
 
-When `testability-prep` runs Step 3 (Identify barriers), it checks for `.bob/HEURISTICS.md`
-first. If the file exists, it uses that as the barrier checklist directly — no further
-adaptation needed. This three-tier lookup means:
+When `testability-prep` runs Step 3 (Identify barriers), it uses a two-tier lookup:
 
-1. `.bob/HEURISTICS.md` — project-adapted, use directly (best).
-2. `SKILLS/testability-heuristics/heuristics-reference.md` — universal, apply lightweight
-   filtering based on diff file types (fallback).
-3. `SKILLS/testability-prep/seams-reference.md` — legacy five-barrier checklist (last resort).
+1. `.bob/HEURISTICS.md` — project-derived, use directly (best). Each barrier already names
+   the real library, function, and fix for this repository.
+2. `SKILLS/testability-heuristics/heuristics-reference.md` — the reasoning guide. Used as
+   a fallback when `.bob/HEURISTICS.md` has not been generated yet. `testability-prep` reads
+   the four diagnostic dimensions and filters by what is plausible from the diff's file types.
 
-Running `testability-heuristics` before `testability-prep` ensures the highest-quality
-barrier detection because the checklist is already concretized for the project's exact stack.
+Running `testability-heuristics` before `testability-prep` gives the highest-quality barrier
+detection because the checklist is already derived from the project's confirmed evidence.
