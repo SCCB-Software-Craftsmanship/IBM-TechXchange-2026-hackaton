@@ -1,6 +1,6 @@
 ---
 name: testability-prep
-description: Analyzes the diff of an already-approved PR and identifies what prevents an automated test from observing, controlling, or isolating the behavior it introduces, then makes the minimum production code change needed to remove that barrier. Activate when a PR has been approved and needs to be prepared for test generation.
+description: Use /testability-prep when a PR has been approved and needs to be prepared for test generation — analyzes the diff and identifies what prevents an automated test from observing, controlling, or isolating the behavior it introduces, then makes the minimum production code change needed to remove that barrier.
 ---
 
 # testability-prep
@@ -60,20 +60,22 @@ Do not read files beyond the diff at this stage.
 
 ### Step 2 — Read established conventions
 
-Read the following files from the repository root, if they exist:
+Call `read_file` on each of the following paths from the repository root, if they exist:
 
 - `.bob/TESTING.md` or `TESTING.md` — learn the existing test framework, helper patterns,
   and any test-file conventions.
 - `.bob/CONVENTIONS.md` or `CONVENTIONS.md` — learn the established selector convention and
   any other project-wide conventions.
 
-If neither file exists, scan existing `*.test.*`, `*.spec.*`, and `*_test.*` files to infer
-the pattern before assuming no convention is in place.
+If neither file exists, use `glob` with patterns `**/*.test.*`, `**/*.spec.*`, and
+`**/*_test.*` to locate test files, then pick 3–5 representative results and call `read_file`
+on each with a limited line range (e.g. `1-80`) — do not read entire files or scan more than
+5 files. Infer the pattern from those samples before assuming no convention is in place.
 
 ### Step 3 — Identify barriers
 
-For every changed or new section in the diff, consult `seams-reference.md` (in this skill's
-directory) as a checklist and ask:
+For every changed or new section in the diff, call `read_file` on
+`SKILLS/testability-prep/seams-reference.md` to load the barrier checklist, then ask:
 
 > What prevents an automated test from observing, controlling, or isolating this behavior?
 
@@ -109,13 +111,15 @@ Only changes that survive this gate proceed to implementation.
 
 ### Step 6 — Implement and commit
 
-Apply the surviving changes on a new branch named `testability/<original-branch>`. Commit with
-a message of the form:
+Use `apply_diff` or `write_file` to apply each surviving change to the affected files. Then
+call `execute_command` to create the branch, stage, and commit:
 
 ```
-testability: <short description of barrier removed>
+git checkout -b testability/<original-branch>
+git add <changed files>
+git commit -m "testability: <short description of barrier removed>
 
-Unblocks: <one-sentence description of the now-possible test>
+Unblocks: <one-sentence description of the now-possible test>"
 ```
 
 One commit per barrier is preferred, but multiple barriers with the same root cause may be
@@ -123,7 +127,9 @@ grouped.
 
 ### Step 7 — Open or report
 
-- **Barriers found and fixed:** Open a PR against the original branch. The PR description must
+- **Barriers found and fixed:** Call `execute_command` with
+  `gh pr create --base <original-branch> --title "testability: <short description>" --body-file /tmp/pr-body.md`
+  (write the PR body to `/tmp/pr-body.md` using `write_file` first). The PR description must
   list each barrier resolved and, for each, one sentence explaining why the change was necessary
   to unblock a specific test. Do not include any change that is not listed in this description.
 - **No barriers found:** Do not open a PR. Report explicitly:
