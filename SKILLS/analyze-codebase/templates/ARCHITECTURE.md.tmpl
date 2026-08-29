@@ -1,0 +1,65 @@
+# Architecture
+
+<!-- High-level summary sentence: how many major layers/modules, primary language(s), runtime. -->
+
+## Folder Structure
+
+<!-- Walk the top-level directory tree and annotate each significant folder.
+     Use `list_files` (recursive: false on root, then recursive: true per major folder) to build the tree.
+     Exclude generated folders (node_modules, .git, dist, __pycache__, .venv, build, coverage).
+
+     Format the tree using code-fence indentation, then add a short annotation per folder:
+
+     ```
+     src/
+       api/        ← HTTP route handlers and middleware
+       core/       ← Business logic, domain models
+       db/         ← Database adapters and migration scripts
+       utils/      ← Shared helpers with no domain knowledge
+     tests/        ← All test code (mirrors src/ structure)
+     scripts/      ← Build, CI, and maintenance scripts
+     ```
+-->
+
+## Module Boundaries
+
+<!-- Describe each logical module or layer: what it owns, what it exposes, and what it must NOT do.
+     A "module" here means a coherent group of files with a shared responsibility.
+     For each module list:
+       - **Name** — what it is responsible for
+       - Public surface (exported symbols, API routes, CLI commands)
+       - Allowed dependencies (which other modules it may import)
+       - Forbidden dependencies (what it must not reach into)
+
+     If the project uses explicit barrel/index files or a monorepo workspace boundary, call that out. -->
+
+## Data Flow
+
+<!-- Trace the path of a representative request or operation from entry point to persistence/output.
+     Choose the most common or most complex flow (e.g., "a user HTTP request", "a CLI command run",
+     "a background job execution").
+
+     Use a numbered step list or a Mermaid sequence/flow diagram.  Example:
+
+     1. Client → `POST /api/submit` → `src/api/routes/submit.ts`
+     2. Route handler validates input with Zod schema
+     3. Calls `core/submitService.process(payload)`
+     4. Service calls `db/repository.save(record)`
+     5. Response returned to client; side-effect event emitted to queue
+
+     If there are multiple distinct flows (e.g., sync vs async), document each one briefly. -->
+
+## Key Design Decisions
+
+<!-- List the non-obvious architectural choices made in this codebase and the reasoning behind them.
+     Sources: ADRs (docs/adr/, docs/decisions/), inline comments marked ARCHITECTURE or NOTE,
+     README sections on "Why X?", commit messages that restructured the project.
+
+     For each decision:
+       - **Decision**: what was chosen
+       - **Alternatives considered**: what else was evaluated
+       - **Rationale**: why this choice was made
+       - **Trade-offs**: what was given up
+
+     If no explicit ADR documents exist, infer decisions from patterns observed in the code
+     (e.g., choice of ORM, use of event sourcing, monorepo vs polyrepo). -->

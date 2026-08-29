@@ -1,0 +1,94 @@
+# Testing
+
+<!-- This is the most critical knowledge file. Be thorough.
+     One sentence summary: number of tests, primary framework(s), overall coverage level. -->
+
+## Test Frameworks
+
+<!-- List every test framework and assertion library in use.
+     Sources: package.json devDependencies, pyproject.toml [test] extras, Cargo.toml [dev-dependencies],
+     config files (jest.config.*, vitest.config.*, pytest.ini, .mocharc.*, cypress.json, playwright.config.*).
+
+     For each framework:
+       - **Name + version** — role (unit / integration / e2e / snapshot / contract / performance)
+       - Config file location (if any)
+       - How it is invoked (npm script, Make target, CLI command)
+
+     Example:
+       - **Jest 29** — unit & integration tests; config: `jest.config.ts`; run: `npm test`
+       - **Playwright 1.40** — end-to-end browser tests; config: `playwright.config.ts`; run: `npm run test:e2e`
+-->
+
+## Test Types & Taxonomy
+
+<!-- Categorise ALL test types present in this project.
+     For each type:
+       - Where tests live (glob pattern, e.g. `src/**/*.unit.test.ts`, `tests/integration/`)
+       - What they test (scope, granularity)
+       - Typical execution time / whether they require external services
+       - Any special setup needed (Docker, seeded DB, mock server, env vars)
+
+     Standard categories to consider (include only those that exist):
+       - **Unit** — pure functions, single module, no I/O
+       - **Integration** — multiple modules wired together, may hit DB or filesystem
+       - **End-to-End (E2E)** — full stack, real browser or real HTTP
+       - **Snapshot** — UI component snapshots or serialised output comparisons
+       - **Contract** — API consumer/provider contract tests (Pact, etc.)
+       - **Performance / Load** — benchmarks, k6, Locust, etc.
+       - **Visual regression** — pixel-level screenshot comparisons (Chromatic, Percy, etc.)
+       - **Smoke** — minimal happy-path checks run after deployment
+
+     If the project uses a custom naming convention or non-standard test taxonomy, document it here. -->
+
+## Coverage Strategy
+
+<!-- Describe how coverage is measured, what thresholds are enforced, and which directories are excluded.
+     Sources: jest.config coverageThreshold, .nycrc, pytest-cov .coveragerc, Cargo tarpaulin config,
+     CI pipeline steps.
+
+     Include:
+       - Coverage tool and report format (lcov, html, cobertura, etc.)
+       - Enforced thresholds (lines %, branches %, functions %, statements %)
+       - Excluded paths (mocks, fixtures, generated code, migration files)
+       - Where coverage reports are written (coverage/, htmlcov/, etc.)
+       - Whether coverage gates are enforced in CI (and which CI step does it)
+
+     If no coverage tooling is configured, state that explicitly. -->
+
+## How to Run Tests
+
+<!-- Provide the exact commands a developer needs to run tests locally.
+     Copy these directly from package.json scripts, Makefile, justfile, or CI config.
+
+     Include:
+       - Run all tests
+       - Run a single file or test by name/pattern
+       - Run tests in watch mode (if available)
+       - Run with coverage report
+       - Run only a specific test type (unit / integration / e2e)
+       - Any required pre-steps (e.g., `docker compose up -d`, `npm run db:seed`)
+
+     Format as a fenced shell code block:
+
+     ```sh
+     npm test                        # run all tests
+     npm test -- --testPathPattern=auth   # filter by file path
+     npm test -- --watch             # watch mode
+     npm run test:coverage           # with coverage
+     npm run test:e2e                # end-to-end only
+     ```
+-->
+
+## Known Gaps
+
+<!-- List areas of the codebase that are under-tested or not tested at all.
+     Sources: TODO/FIXME/HACK comments in test files, skipped/pending tests (it.skip, pytest.mark.skip,
+     xit), coverage reports if available, README notes.
+
+     For each gap:
+       - **Area** — what is not covered
+       - **Reason** — why (if known): hard to test, not yet prioritised, external dependency, etc.
+       - **Risk** — how critical is this gap (High / Medium / Low)
+
+     If no explicit gaps are documented and coverage appears thorough, state that here.
+     Do not fabricate gaps — only list what is concretely observed. -->

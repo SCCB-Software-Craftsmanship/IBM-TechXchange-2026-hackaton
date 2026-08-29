@@ -1,0 +1,62 @@
+# Dependencies
+
+<!-- One sentence summary: approximate number of runtime and dev dependencies, primary ecosystem. -->
+
+## Runtime Dependencies
+
+<!-- List every production/runtime dependency.
+     Sources: package.json "dependencies", pyproject.toml [dependencies], Cargo.toml [dependencies],
+     requirements.txt (non-dev), pom.xml <dependencies>, build.gradle dependencies{}.
+
+     For each dependency:
+       - **Name** — current pinned/required version (or range)
+       - One-sentence description of what it does in this project
+       - The specific feature(s) of the library that are actively used
+
+     Format as a table:
+
+     | Package | Version | Purpose |
+     |---|---|---|
+     | express | ^4.18.0 | HTTP server and routing |
+     | zod | ^3.22.0 | Runtime schema validation for API inputs |
+-->
+
+## Dev Dependencies
+
+<!-- List every development-only dependency (test frameworks, build tools, linters, type stubs, etc.).
+     Sources: package.json "devDependencies", pyproject.toml [dev-dependencies] or [test] extras,
+     Cargo.toml [dev-dependencies].
+
+     Same format as Runtime Dependencies. Group by category if the list is long (>15 items):
+       - Testing
+       - Build / Bundler
+       - Linting / Formatting
+       - Type definitions
+       - Other tooling
+-->
+
+## Why Each Is Used
+
+<!-- For any dependency whose purpose is non-obvious from its name alone, add a short paragraph
+     explaining WHY this specific library was chosen over alternatives.
+     Common examples: choice of HTTP library, ORM, validation library, state manager, test runner.
+
+     Skip dependencies that are self-explanatory (e.g., "typescript", "eslint").
+     Focus on choices that a new contributor might question. -->
+
+## Version Constraints
+
+<!-- Document any non-trivial version pinning or constraints and the reason for them.
+     Examples:
+       - A dependency locked to a specific patch version due to a known bug
+       - A peer-dependency requirement that restricts upgrading a transitive dep
+       - An upper-bound cap on a major version due to a breaking API change
+       - A dependency that cannot be upgraded until a platform/runtime is upgraded
+
+     If all dependencies are at their latest compatible versions with no special constraints,
+     state that explicitly.
+
+     Also note:
+       - Node.js / Python / Rust / JVM version requirement (from .nvmrc, .python-version,
+         engines field, toolchain file, etc.)
+       - Any known deprecated packages that need replacing -->

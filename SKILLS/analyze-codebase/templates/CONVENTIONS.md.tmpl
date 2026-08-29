@@ -1,0 +1,76 @@
+# Conventions
+
+<!-- One sentence summary of the overall style philosophy (e.g., "Strict TypeScript, Prettier-formatted, conventional commits"). -->
+
+## Naming Rules
+
+<!-- Document naming conventions used throughout the codebase.
+     Investigate by reading a sample of source files across different directories.
+
+     Cover all that apply:
+       - **Files & folders**: kebab-case, PascalCase, snake_case? Suffix conventions (.service.ts, _test.go, etc.)
+       - **Variables & functions**: camelCase, snake_case, SCREAMING_SNAKE for constants?
+       - **Classes & types**: PascalCase? Suffix patterns (Controller, Service, Repository, Handler, Manager)?
+       - **Interfaces / abstract types**: "I" prefix, "Abstract" prefix, none?
+       - **Test files**: *.test.ts, *.spec.ts, *_test.py, placed alongside source or in separate tree?
+       - **Database columns / API fields**: snake_case vs camelCase? Transformation layer?
+       - **Environment variables**: ALL_CAPS_WITH_UNDERSCORES? Prefix with project name?
+
+     Call out any exceptions or inconsistencies observed. -->
+
+## Code Style
+
+<!-- Describe the enforced style rules and the patterns observed in the code.
+
+     Cover:
+       - **Language version / dialect** (ES2022, Python 3.11+, strict TypeScript, etc.)
+       - **Import ordering** (built-ins first, then third-party, then local; alphabetical within groups)
+       - **Function style** (arrow vs function declaration preference, async/await vs Promise chains)
+       - **Error handling** (throw vs return error object, custom error classes, Result type pattern)
+       - **Comments** (when to write them; JSDoc/docstring requirements on public APIs)
+       - **Max line length**, **indentation** (tabs vs spaces, indent size)
+       - Any project-specific idioms (e.g., "services never import controllers", "no default exports") -->
+
+## File Organisation
+
+<!-- Explain how source files are laid out within the project.
+
+     Cover:
+       - Colocation policy (tests next to source? Separate test tree?)
+       - Barrel / index file policy (one per folder? Forbidden? Only for public API?)
+       - How to decide which folder a new file goes in
+       - Any enforced module boundary rules (import-path restrictions, no-circular-import checks)
+       - Generated file locations and whether they are committed to VCS -->
+
+## Commit & PR Conventions
+
+<!-- Document the expected format for Git commits and pull requests.
+     Sources: CONTRIBUTING.md, .github/pull_request_template.md, commitlint config,
+     .github/COMMIT_CONVENTION.md, or observed commit history patterns.
+
+     Cover:
+       - Commit message format (Conventional Commits? Gitmoji? Freeform?)
+       - Required PR fields (description template, linked issue, checklist)
+       - Branch naming convention (feature/, fix/, chore/, release/?)
+       - Review requirements (minimum approvals, CODEOWNERS)
+       - Squash vs merge vs rebase policy
+
+     If no written convention exists, note that and describe what the git log suggests. -->
+
+## Linting / Formatting Tools
+
+<!-- List every static analysis, linting, and auto-formatting tool configured in the project.
+     Sources: package.json scripts, .eslintrc.*, .prettierrc.*, biome.json, pyproject.toml [tool.ruff],
+     pylintrc, .flake8, .rubocop.yml, golangci-lint.yml, etc.
+
+     For each tool:
+       - **Name + version** — what it checks or formats
+       - Config file location
+       - How to run it manually
+       - Whether it is enforced in CI (and at which step)
+       - Whether it auto-fixes or only reports
+
+     Example:
+       - **ESLint 8** — TypeScript linting; config: `.eslintrc.cjs`; run: `npm run lint`; CI: lint job; reports only
+       - **Prettier 3** — code formatting; config: `.prettierrc`; run: `npm run format`; auto-fixes
+-->

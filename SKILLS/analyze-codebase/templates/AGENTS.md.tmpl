@@ -1,0 +1,158 @@
+# AGENTS.md — Codebase Briefing
+
+<!-- INSTRUCTIONS FOR POPULATING THIS FILE
+     This file is a dense synthesis of the 6 knowledge files (PROJECT, ARCHITECTURE, TESTING,
+     DEPENDENCIES, CONVENTIONS, GLOSSARY). It is auto-loaded by Bob at the start of every
+     conversation to provide instant, pre-computed project context.
+
+     Target length: 100–150 lines. Be thorough but scannable — prefer tables and bullet lists
+     over prose paragraphs. Every claim must be traceable to one of the 6 source files.
+     Do NOT copy large blocks verbatim; summarise and cross-reference instead. -->
+
+---
+
+## Project Summary
+
+<!-- Synthesised from PROJECT.md.
+     Fill in: project name, one-sentence purpose, target users, and primary entry point(s).
+     Maximum 6 lines. -->
+
+- **Project:** <!-- name -->
+- **Purpose:** <!-- one sentence -->
+- **Users / audience:** <!-- who runs or consumes this project -->
+- **Primary entry points:**
+  - <!-- path/to/entry — trigger — description -->
+  - <!-- add more as needed -->
+- **Owners:** <!-- team or individual, or "Not specified" -->
+
+---
+
+## Architecture at a Glance
+
+<!-- Synthesised from ARCHITECTURE.md.
+     Fill in: runtime/language, top-level folder map (2–3 words per folder), module count,
+     dominant data flow pattern. Use the annotated tree format. Maximum 30 lines. -->
+
+**Stack:** <!-- language + version, runtime, primary framework -->
+
+**Folder map:**
+```
+<!-- paste the annotated folder tree here; one line per significant folder -->
+```
+
+**Module boundaries (key rules):**
+<!-- 3–5 bullet points: what each major layer owns and what it must not do -->
+
+**Primary data flow:**
+<!-- Numbered steps (≤8) for the most representative request path -->
+
+**Key design decisions:**
+<!-- 2–4 bullets: the most important non-obvious architectural choices and their rationale -->
+
+---
+
+## Testing Overview
+
+<!-- Synthesised from TESTING.md.
+     This section must be the most detailed in this file — testing is the primary focus.
+     Maximum 50 lines. -->
+
+**Frameworks:**
+<!-- Table: Framework | Version | Role | Config file | Run command -->
+
+| Framework | Version | Role | Config | Command |
+|---|---|---|---|---|
+<!-- | Jest | 29 | Unit + integration | jest.config.ts | npm test | -->
+
+**Test taxonomy:**
+
+| Type | Location (glob) | Scope | External deps? |
+|---|---|---|---|
+<!-- | Unit | src/**/*.unit.test.ts | Single module, pure | No | -->
+<!-- | Integration | tests/integration/ | Multi-module + DB | Yes (Docker) | -->
+<!-- | E2E | tests/e2e/ | Full stack, browser | Yes (running server) | -->
+
+**Coverage:**
+- Tool: <!-- e.g., Jest --coverage / pytest-cov / cargo-tarpaulin -->
+- Thresholds: <!-- lines %, branches %, functions % — or "Not enforced" -->
+- Excluded: <!-- comma-separated paths excluded from coverage -->
+- Reports written to: <!-- e.g., coverage/ -->
+- CI gate: <!-- Yes — "coverage" job in .github/workflows/ci.yml — or No -->
+
+**How to run tests (quick reference):**
+```sh
+# <!-- run all tests -->
+# <!-- run a single file/test -->
+# <!-- watch mode (if available) -->
+# <!-- with coverage -->
+# <!-- e2e only (if separate) -->
+```
+
+**Known testing gaps:**
+
+| Area | Reason | Risk |
+|---|---|---|
+<!-- | Error handling in db/repository.ts | Hard to simulate DB failure in unit tests | High | -->
+
+---
+
+## Key Dependencies
+
+<!-- Synthesised from DEPENDENCIES.md.
+     List only the most significant runtime deps (max 8) and note any version constraints.
+     Maximum 20 lines. -->
+
+**Runtime (top dependencies):**
+
+| Package | Version | Why used |
+|---|---|---|
+<!-- | express | ^4.18.0 | HTTP server and routing | -->
+
+**Dev toolchain highlights:**
+<!-- 3–5 bullets for the most important dev tools (test runner, bundler, linter) -->
+
+**Notable constraints:**
+<!-- Any pinned or restricted versions and the reason; or "None" -->
+
+**Required runtime version:** <!-- e.g., Node.js ≥18, Python ≥3.11, or "Not specified" -->
+
+---
+
+## Conventions Cheatsheet
+
+<!-- Synthesised from CONVENTIONS.md.
+     Dense reference card. Maximum 20 lines. -->
+
+**Naming quick-ref:**
+- Files/folders: <!-- e.g., kebab-case -->
+- Classes/types: <!-- e.g., PascalCase, suffix: Service, Controller -->
+- Variables/functions: <!-- e.g., camelCase -->
+- Constants: <!-- e.g., SCREAMING_SNAKE_CASE -->
+- Test files: <!-- e.g., *.test.ts alongside source -->
+- Env vars: <!-- e.g., ALL_CAPS, prefixed APP_ -->
+
+**Style rules (key):**
+<!-- 3–5 most important enforced rules (e.g., no default exports, strict null checks, max line 100) -->
+
+**Commit format:** <!-- e.g., Conventional Commits: type(scope): subject -->
+
+**PR requirements:** <!-- e.g., 1 approval, linked issue, passes CI -->
+
+**Linting/formatting:**
+<!-- Bullet per tool: Name — what it does — how to run — CI enforced? -->
+
+---
+
+## Glossary Highlights
+
+<!-- Synthesised from GLOSSARY.md.
+     Include only the 5–10 most important or most frequently used domain terms.
+     Maximum 15 lines. -->
+
+| Term | Short definition |
+|---|---|
+<!-- | ACL | Per-resource permission map keyed by user role | -->
+<!-- | Hydration | Enriching a raw DB row with computed fields before API response | -->
+
+---
+<!-- Made with IBM Bob -->

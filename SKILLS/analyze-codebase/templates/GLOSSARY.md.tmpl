@@ -1,0 +1,25 @@
+# Glossary
+
+<!-- Domain-specific terms used across this codebase.
+     Collect terms by scanning: source file names, exported type/class/enum names, inline comments,
+     README, docs/, any domain model or schema files.
+
+     Rules for inclusion:
+       - Include terms that a new contributor would not understand without context
+       - Include abbreviations and acronyms used in variable names, routes, or schemas
+       - Include terms with project-specific meanings that differ from common usage
+       - Skip universally understood programming terms (e.g., "function", "class", "loop")
+
+     Keep the table sorted alphabetically by Term.
+     The "Where Used" column should name the file(s) or module(s) where the term appears most prominently. -->
+
+## Domain Terms
+
+| Term | Definition | Where Used |
+|---|---|---|
+<!-- Add rows below. Example rows (replace with real project terms):
+| ACL | Access Control List — a per-resource permission map keyed by user role | `src/auth/acl.ts`, `src/api/middleware/authorize.ts` |
+| Canonical ID | A stable, globally unique identifier assigned at record creation; never changes even if the record is renamed | `src/core/models/`, `src/db/schema.ts` |
+| Hydration | The process of enriching a raw DB row with computed fields before returning it to the API layer | `src/core/services/hydrate.ts` |
+| Saga | A long-running multi-step workflow managed by the `core/saga/` module; uses compensating transactions on failure | `src/core/saga/` |
+-->
