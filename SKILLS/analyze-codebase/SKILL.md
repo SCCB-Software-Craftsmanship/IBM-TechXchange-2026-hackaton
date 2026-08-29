@@ -126,31 +126,48 @@ Perform this step after all knowledge files have been written or confirmed up to
    `<OUTPUT_PATH>/TESTING.md`, `<OUTPUT_PATH>/GLOSSARY.md`.
 3. **Generate a candidate AGENTS.md in memory only.** Do NOT call `write_file` for the candidate.
    Apply the same synthesis rules as Path A (100–150 lines, all claims traceable to source files).
-4. Compare the candidate against the existing AGENTS.md content. Produce
-   `AGENTS-comparison.md` with the following sections:
+4. Compare the candidate against the existing AGENTS.md **by content, not by structure**.
+   Ignore section heading names and document layout — focus on whether each concrete *fact or claim*
+   present in the candidate is reflected somewhere in the existing file, regardless of which section
+   it appears in. Produce `AGENTS-comparison.md` with the following sections:
 
    ```
    ## Summary
-   One paragraph describing overall alignment between the candidate and the existing file.
+   One paragraph describing overall content alignment between the candidate and the existing file.
+   Do not comment on structural or section-layout differences.
 
    ## Confidence Score
-   A percentage (0–100 %) representing the fraction of candidate sections that have a close
-   equivalent in the existing file. Briefly justify the score.
+   A percentage (0–100 %) representing the fraction of concrete facts/claims in the candidate
+   that are covered — with equivalent meaning — anywhere in the existing file.
+   Do NOT penalise for structural differences, section layout mismatches, or sections that exist
+   in the existing file but not in the candidate template.
+   Scoring guide:
+     - Each fact in the candidate is either Covered (present in existing, possibly worded differently)
+       or Missing (absent from existing).
+     - Score = Covered / (Covered + Missing) × 100, rounded to the nearest 5 %.
+   Briefly list the main reasons for any Missing facts.
 
-   ## Matching Coverage
-   Bullet list of topics well-covered in both files.
+   ## Testing Coverage Score
+   A separate percentage for testing-specific facts only (frameworks, commands, test types,
+   coverage strategy, known gaps). This is the primary quality signal.
+   Apply the same Covered/Missing method as the overall score.
 
-   ## In Candidate Only
-   Bullet list of topics present in the candidate but absent from the existing AGENTS.md.
+   ## Covered Facts
+   Bullet list of facts/claims present in both files (content match, wording may differ).
+
+   ## Missing from Existing
+   Bullet list of facts in the candidate that are absent from the existing AGENTS.md. These are
+   concrete gaps — the existing file does not cover them anywhere.
 
    ## In Existing Only
-   Bullet list of topics in the existing AGENTS.md not reflected in the candidate. These may
-   represent human context that cannot be inferred from source alone.
+   Bullet list of significant facts in the existing AGENTS.md that the candidate does not cover.
+   These typically represent human-authored workflow context not derivable from source code alone.
+   Note: this section does NOT affect the Confidence Score.
 
    ## Recommendation
    One of:
    - "AGENTS.md is accurate — no changes needed."
-   - "Update sections: <comma-separated list of section headings>."
+   - "Update sections: <comma-separated list of content topics>."
    - "Full regeneration recommended — significant divergence detected."
    ```
 
