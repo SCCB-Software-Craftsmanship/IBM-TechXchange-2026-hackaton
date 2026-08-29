@@ -1,0 +1,10 @@
+# OpenTofu / Terraform local state and plugin cache — never commit these
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
