@@ -3,6 +3,7 @@ name: review-pr
 description: Use /review-pr to find, analyse, and post a structured review on an open GitHub pull request — covers skill format, CI/CD pipelines, MCP configs, and watsonx orchestration patterns
 metadata:
   disable-model-invocation: true
+  argument-hint: "[pr-number | url | branch | description]"
 ---
 
 # review-pr
@@ -73,9 +74,6 @@ If the user typed `/review-pr` with no additional context:
 2. Call `execute_command` with `gh pr diff <number>` to get the full unified diff.
    Store the result as the diff text.
 
-3. Call `execute_command` with `gh pr checks <number>` to get CI check statuses.
-   If the command fails or returns no output, note "No CI checks found." and continue.
-
 ---
 
 ## Step 3 — Classify changed files
@@ -110,21 +108,42 @@ Severity levels: `blocking` | `warning` | `info`.
 
 ### Skill checklist
 
-Apply to every file classified as **Skill**.
+Apply to every file classified as **Skill**. This is the primary checklist — give it the most
+thorough review.
 
-- `[blocking]` The `SKILL.md` diff contains a frontmatter block (`---`) with both `name:` and
-  `description:` fields.
-- `[blocking]` If the skill body references user arguments or optional parameters, a
-  `metadata.argument-hint` field is present in the frontmatter.
-- `[blocking]` The skill body contains numbered steps and each step names the exact Bob tool to
-  call (look for tool names such as `write_file`, `read_file`, `execute_command`,
-  `ask_followup_question`, `glob`, `grep`).
-- `[warning]` No placeholder text (`TODO`, `FIXME`, `<fill this in>`, `...`) appears in the
-  `SKILL.md` diff.
-- `[warning]` A `README.md` file appears in the same diff or already exists in the same
-  `SKILLS/<name>/` directory (check the diff for a sibling `README.md`).
-- `[info]` If the `SKILL.md` diff references template files (e.g. calls `read_file` on a
-  `.tmpl` path), verify that those template files are also present in the diff or already exist.
+**Structure and format**
+- `[blocking]` The `SKILL.md` diff contains a valid frontmatter block (`---` open and close) with
+  both `name:` and `description:` fields present and non-empty.
+- `[blocking]` The `description:` field starts with a clear trigger phrase (e.g. "Use when…",
+  "Use /skill-name to…") so Bob knows when to auto-activate it.
+- `[blocking]` The skill body is broken into numbered steps (`## Step N — …` headings or numbered
+  list items). A skill with no structural steps cannot be reliably followed.
+- `[blocking]` Each step that performs an action names the exact Bob tool to call (look for tool
+  names: `write_file`, `read_file`, `execute_command`, `ask_followup_question`, `glob`, `grep`,
+  `list_files`, `apply_diff`, `insert_content`, `search_and_replace`). Vague instructions like
+  "look at the files" or "check the codebase" without a named tool are a blocking issue.
+
+**Completeness and usability**
+- `[warning]` No placeholder text (`TODO`, `FIXME`, `<fill this in>`, `TBD`, `...`) left anywhere
+  in the `SKILL.md` diff — the skill must be fully actionable as written.
+- `[warning]` Every branch or conditional path in the skill (e.g. "if X, do A; otherwise do B")
+  has explicit instructions for both branches. Dead-end paths are a usability problem.
+- `[warning]` A `README.md` exists alongside the `SKILL.md` (check the diff for a sibling file
+  or note its absence).
+- `[warning]` If the skill produces output files, the step that writes them specifies the exact
+  output path — no vague "write it somewhere" instructions.
+
+**Bob-specific conventions**
+- `[warning]` `metadata.disable-model-invocation` is set to `true` if the skill should only run
+  on explicit `/skill-name` invocation (not auto-triggered). Flag if this appears to be a
+  command-style skill but the field is missing.
+- `[info]` If the skill accepts user arguments, a `metadata.argument-hint` is present in the
+  frontmatter (e.g. `argument-hint: "[pr-number | url]"`). This is optional but improves UX.
+- `[info]` If the skill references template files (calls `read_file` on a `.tmpl` path), verify
+  those files are also present in the diff or already exist in the repository.
+- `[info]` Steps that could produce large outputs (e.g. reading many files) use targeted tools
+  (`grep`, `glob`, line ranges on `read_file`) rather than broad reads — this keeps the skill
+  efficient within context limits.
 
 ### CI/CD checklist
 
@@ -201,10 +220,6 @@ it touches. Be specific — name the categories and what changed within them.>
 #### 🟢 Info / Suggestions
 - `<file>` — <finding>
 (Omit this section entirely if there are no info items.)
-
-### CI Checks
-<For each check returned by `gh pr checks`: "- <check name>: <status>".
-If no checks were found, write "No CI checks found.">
 
 ### Verdict
 ✅ No issues found — approving.
