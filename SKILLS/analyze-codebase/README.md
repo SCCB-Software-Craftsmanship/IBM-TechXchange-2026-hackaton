@@ -47,7 +47,7 @@ Then restart Bob or open a new conversation. The skill will be available as `/an
 /analyze-codebase [output-path]
 ```
 
-- `[output-path]` is optional at invocation — if omitted, Bob will prompt you for it.
+- `[output-path]` is optional — if omitted, output defaults to `.context/` in the workspace root.
 - The path is relative to the workspace root and will be created if it does not exist.
 
 **Example:**

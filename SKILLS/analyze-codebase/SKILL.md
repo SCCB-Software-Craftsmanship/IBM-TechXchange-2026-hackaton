@@ -3,7 +3,7 @@ name: analyze-codebase
 description: Use /analyze-codebase to scan the codebase and generate or update structured knowledge files (PROJECT.md, ARCHITECTURE.md, TESTING.md, DEPENDENCIES.md, CONVENTIONS.md, GLOSSARY.md, AGENTS.md).
 metadata:
   disable-model-invocation: true
-  argument-hint: "[output-path]"
+  argument-hint: "[output-path]"   # optional — defaults to .context
 ---
 
 # analyze-codebase
@@ -17,11 +17,8 @@ files. Follow every step in order. Name the exact tool used at each action.
 
 1. Check whether an `[output-path]` argument was supplied with the `/analyze-codebase` command.
 2. If an argument **was** provided, treat it as `OUTPUT_PATH` and proceed to Step 2.
-3. If **no** argument was provided, call `ask_followup_question` with the question:
-   > "Where should the knowledge files be written? Provide a path relative to the workspace root
-   > (e.g. `docs/knowledge`)."
-   Offer `docs/knowledge`, `docs`, and `.knowledge` as suggestions.
-   Use the user's answer as `OUTPUT_PATH` before continuing.
+3. If **no** argument was provided, set `OUTPUT_PATH` to `.context` and proceed to Step 2.
+   Do **not** prompt the user — `.context` is the default.
 
 ---
 
