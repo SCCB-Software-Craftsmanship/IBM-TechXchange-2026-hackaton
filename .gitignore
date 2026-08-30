@@ -5,3 +5,6 @@
 
 # Node
 node_modules/
+
+# Local analysis target — full clone of maybe-finance/maybe, has its own .git
+maybe/
