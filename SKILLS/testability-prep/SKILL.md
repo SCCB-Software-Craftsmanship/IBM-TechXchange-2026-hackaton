@@ -223,6 +223,16 @@ grouped into a single commit. Push the branch:
 git push origin testability/<pr-head-branch>
 ```
 
+**If the push fails** (e.g. `Permission to <repo> denied`, `403`, or any non-zero exit), do
+**not** retry against a different remote, fork, or branch, and do not attempt the PR steps that
+follow. Abort:
+> ⚠️ Cannot proceed — no push access to `origin` (`<repo>`) for branch
+> `testability/<pr-head-branch>`. The testability changes were committed locally but not pushed;
+> no PR was opened. Grant push access to this repo, or push the local branch manually and open
+> the PR yourself.
+
+BLOCK and let human know.
+
 ### Step 9 — Compose the PR body
 
 Write a thorough analysis report to `/tmp/testability-pr-body.md` using `write_file`.
@@ -268,17 +278,29 @@ If no barriers were found at all, state that explicitly here.>
 
 ### Step 10 — Open the child PR
 
-Call `execute_command` with:
+First pin the target repository explicitly. `gh pr create` does not infer the repo from
+`--base`— left unset, it defaults to the **parent/upstream** repo whenever `origin` is a fork,
+which silently sends the child PR to the wrong repository. Since Step 8 already pushed the
+testability branch to `origin`, reuse that exact same repo (no new access is required beyond
+what Step 8 already proved):
+
+```bash
+CHILD_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+```
+
+Then call `execute_command` with:
 
 ```bash
 gh pr create \
+  --repo "$CHILD_REPO" \
   --base <pr-head-branch> \
   --title "testability(#<N>): <short description of barriers removed>" \
   --body-file /tmp/testability-pr-body.md
 ```
 
-The base must be the **original PR's head branch**, not `main`. This ensures the testability
-fix is reviewed alongside the feature code it enables testing for.
+The base must be the **original PR's head branch**, not `main`, and the repo must be the
+**original PR's repo** (the fork, if the original PR is from a fork), not the upstream parent.
+This ensures the testability fix is reviewed alongside the feature code it enables testing for.
 
 If no barriers were found (and the gate check passed with zero surviving changes), do **not**
 open a PR. Report:
