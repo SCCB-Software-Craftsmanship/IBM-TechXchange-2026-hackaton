@@ -6,36 +6,72 @@
 # main.orchestrate.md
 
 > **This is a system prompt, not a skill.**
-> It is the single entry point for the full testability analysis pipeline.
-> Run it by opening it as a task or pasting it as your initial prompt.
+> It is the **complete onboarding entry point** for a project — run it once on a fresh
+> clone to install skills, bootstrap the database, and generate all knowledge files.
+> Re-running it on an already-prepared project is safe: every step is idempotent.
 >
 > **Responsibility split:**
-> - `main.orchestrate.md` (this file) — enforces pipeline order. Checks whether
->   `analyze-codebase` has been run, runs it if not, then hands off to `analyze-tests`.
-> - `orchestrate/analyze-tests.orchestrate.md` — loads shared context and fans out
->   `scan-test-suites` and `testability-heuristics` as parallel subagents.
->
-> Never run `analyze-tests.orchestrate.md` directly on a fresh project — use this file.
+> - `main.orchestrate.md` (this file) — full project onboarding and pipeline setup.
+> - `orchestrate/analyze-tests.orchestrate.md` — parallel test-suite analysis (called by Phase 3).
+> - `orchestrate/generate-tests.orchestrate.md` — on-demand test generation per Cloudant run.
 
 ---
 
 ## What this prompt does
 
-Guarantees the full pipeline executes in the correct order:
+```
+Phase 0 — Prerequisites & tooling setup
+  0.1  Verify gh CLI authenticated
+  0.2  Install Bob skills (scripts/install-skills.sh)
 
-```
-1. analyze-codebase   → .bob/TESTING.md, DEPENDENCIES.md, CONVENTIONS.md, ARCHITECTURE.md …
-2. analyze-tests      → .bob/TEST-SUITES.md  (parallel)
-                      → .bob/HEURISTICS.md   (parallel)
+Phase 1 — Check for analyze-codebase output (skip if already present)
+
+Phase 2 — Run analyze-codebase → .bob/ knowledge files (if Phase 1 missed)
+
+Phase 3 — Run analyze-tests
+           ├── [parallel] scan-test-suites      → .bob/TEST-SUITES.md
+           └── [parallel] testability-heuristics → .bob/HEURISTICS.md
+
+Phase 4 — Final summary
 ```
 
-Step 1 is skipped automatically when `analyze-codebase` output already exists — re-running
-this prompt on an already-prepared project is safe and fast.
+Every phase is skipped or fast-pathed when its outputs already exist.
+`testability-prep` and `generate-tests` are NOT part of this pipeline — they run on demand.
 
-`testability-prep` is NOT part of this pipeline. It runs on demand per PR:
+---
+
+## Phase 0 — Prerequisites and tooling setup
+
+Run all checks in this phase before anything else. They are fast and idempotent.
+
+### 0.1 — Verify gh CLI is authenticated
+
+Call `execute_command` with:
+
+```bash
+gh auth status
 ```
-bob -p "run testability-prep on PR #<number>"
+
+If the command fails or shows "not logged in", stop and report:
+> ⚠️ `gh` CLI is not authenticated. Run `gh auth login` and re-run this prompt.
+
+BLOCK — do not proceed.
+
+### 0.2 — Install Bob skills
+
+Call `execute_command` with:
+
+```bash
+bash scripts/install-skills.sh
 ```
+
+This copies every skill from `SKILLS/` into `~/.bob/skills/` so Bob can invoke them.
+The script is idempotent — re-running it updates existing skills without duplication.
+
+If the command fails, stop and report:
+> ⚠️ `scripts/install-skills.sh` failed. Check the output above and resolve the error.
+
+BLOCK — do not proceed.
 
 ---
 
@@ -110,24 +146,31 @@ and dispatch the parallel subagents. Do not summarise or shortcut its steps.
 After `analyze-tests` Phase 3 (confirm and report) completes, print:
 
 ```
-## main — pipeline complete
+## main — onboarding complete
 
-### Pipeline steps executed
-  <one of the following lines for Step 1>
+### Phase 0 — Prerequisites
+  ✓ gh CLI authenticated
+  ✓ Bob skills installed  (~/.bob/skills/)
+
+### Phase 1-2 — Codebase analysis
+  <one of the following lines>
   ✓ analyze-codebase  — already present, skipped
   ✓ analyze-codebase  — run via subagent, .bob/ written
 
-  ✓ analyze-tests     — scan-test-suites + testability-heuristics ran in parallel
+### Phase 3 — Test analysis
+  ✓ analyze-tests  — scan-test-suites + testability-heuristics ran in parallel
 
-### Outputs
-  .bob/TESTING.md        ✓
-  .bob/DEPENDENCIES.md   ✓
-  .bob/CONVENTIONS.md    ✓
-  .bob/ARCHITECTURE.md   ✓
-  .bob/TEST-SUITES.md    ✓  (<N> observation sections)
-  .bob/HEURISTICS.md     ✓  (<N> barrier entries: <IDs>)
+### Knowledge files written to .bob/
+  PROJECT.md       ✓     TESTING.md       ✓
+  ARCHITECTURE.md  ✓     DEPENDENCIES.md  ✓
+  CONVENTIONS.md   ✓     GLOSSARY.md      ✓
+  TEST-SUITES.md   ✓  (<N> observation sections)
+  HEURISTICS.md    ✓  (<N> barrier entries: <IDs>)
 
-### Ready for
-  testability-prep runs on demand when a PR is approved:
-  bob -p "run testability-prep on PR #<number>"
+### Project is ready for
+  Per-PR testability analysis (on demand when a PR is approved):
+    bob -p "run testability-prep on PR #<number>"
+
+  Test generation (on demand from Cloudant queue):
+    Open orchestrate/generate-tests.orchestrate.md as a task
 ```

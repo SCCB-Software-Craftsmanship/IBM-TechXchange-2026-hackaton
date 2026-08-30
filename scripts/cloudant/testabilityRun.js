@@ -53,6 +53,9 @@ export const VALID_TRANSITIONS = {
  * @param {string|null}   params.testabilityPrLink - URL of the child testability PR, or null
  * @param {string[]}      params.barriersResolved  - barrier IDs fixed (e.g. ['B2','B3']), or []
  * @param {string}        params.summary           - prose summary produced by testability-prep
+ * @param {object}        [params.testPrs]         - map of pyramid layer → test PR URL,
+ *                                                   populated when tests_implemented is reached.
+ *                                                   e.g. { unit: 'https://...', integration: 'https://...' }
  * @param {object}        [params.meta]            - any extra key/value pairs to store
  * @returns {TestabilityRunDoc}
  */
@@ -61,6 +64,7 @@ export function createTestabilityRun({
   testabilityPrLink = null,
   barriersResolved = [],
   summary = '',
+  testPrs = {},
   meta = {},
 }) {
   const now = new Date().toISOString();
@@ -84,6 +88,11 @@ export function createTestabilityRun({
     // Summary text from testability-prep output
     summary,
 
+    // Per-layer test PR links — populated when state reaches tests_implemented.
+    // Keys are pyramid layer names: 'unit', 'integration', 'e2e'.
+    // Values are GitHub PR URLs.
+    test_prs: testPrs,
+
     // Audit timestamps
     created_at: now,
     updated_at: now,
@@ -105,7 +114,17 @@ export function createTestabilityRun({
  * @param {string}            state - target RunState value
  * @returns {TestabilityRunDoc}
  */
-export function transitionRun(doc, state) {
+/**
+ * Return an updated copy of a run document advanced to the next state.
+ * Throws if the transition is invalid.
+ *
+ * @param {TestabilityRunDoc} doc       - existing Cloudant document (must have `_rev`)
+ * @param {string}            state     - target RunState value
+ * @param {object}            [testPrs] - optional map of layer → PR URL to merge into
+ *                                        test_prs when transitioning to tests_implemented
+ * @returns {TestabilityRunDoc}
+ */
+export function transitionRun(doc, state, testPrs = {}) {
   const allowed = VALID_TRANSITIONS[doc.state] ?? [];
   if (!allowed.includes(state)) {
     throw new Error(
@@ -113,5 +132,9 @@ export function transitionRun(doc, state) {
       `Allowed: [${allowed.join(', ') || 'none'}]`
     );
   }
-  return { ...doc, state, updated_at: new Date().toISOString() };
+  const updated = { ...doc, state, updated_at: new Date().toISOString() };
+  if (state === RunState.TESTS_IMPLEMENTED && Object.keys(testPrs).length > 0) {
+    updated.test_prs = { ...(doc.test_prs ?? {}), ...testPrs };
+  }
+  return updated;
 }

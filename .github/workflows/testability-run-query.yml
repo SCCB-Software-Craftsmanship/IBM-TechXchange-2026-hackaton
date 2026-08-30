@@ -12,6 +12,7 @@ on:
             list-all       list every record regardless of state
             get            fetch a single record by id (full detail)
             claim          fetch by id + transition to tests_in_progress (atomic claim)
+            transition     advance a record to an arbitrary next state (forward-only)
         required: true
         type: choice
         options:
@@ -19,13 +20,19 @@ on:
           - list-all
           - get
           - claim
+          - transition
       state:
-        description: 'State to filter by (required for list-by-state). One of: tests_not_yet_implemented | tests_in_progress | tests_implemented | tests_verified'
+        description: 'State to filter by (list-by-state) or target state (transition). One of: tests_not_yet_implemented | tests_in_progress | tests_implemented | tests_verified'
         required: false
         type: string
         default: 'tests_not_yet_implemented'
       id:
-        description: 'Document UUID (required for get and claim modes)'
+        description: 'Document UUID (required for get, claim, and transition modes)'
+        required: false
+        type: string
+        default: ''
+      test_prs:
+        description: 'JSON map of pyramid layer → test PR URL (transition to tests_implemented only). e.g. {"unit":"https://...","integration":"https://"}'
         required: false
         type: string
         default: ''
@@ -66,8 +73,12 @@ jobs:
             echo "::error::mode=list-by-state requires the 'state' input to be set."
             exit 1
           fi
-          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" ]] && [[ -z "$INPUT_ID" ]]; then
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]] && [[ -z "$INPUT_ID" ]]; then
             echo "::error::mode=$INPUT_MODE requires the 'id' input to be set."
+            exit 1
+          fi
+          if [[ "$INPUT_MODE" == "transition" && -z "$INPUT_STATE" ]]; then
+            echo "::error::mode=transition requires the 'state' input to be set."
             exit 1
           fi
 
@@ -82,6 +93,7 @@ jobs:
           INPUT_MODE: ${{ inputs.mode }}
           INPUT_STATE: ${{ inputs.state }}
           INPUT_ID: ${{ inputs.id }}
+          INPUT_TEST_PRS: ${{ inputs.test_prs }}
         run: |
           case "$INPUT_MODE" in
 
@@ -115,6 +127,19 @@ jobs:
                 RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
               fi
               ;;
+
+            transition)
+              # Build the transition command — optionally include --test-prs
+              TRANSITION_CMD="node scripts/cloudant/save.js transition --id \"$INPUT_ID\" --state \"$INPUT_STATE\""
+              if [[ -n "$INPUT_TEST_PRS" ]]; then
+                # Write JSON to a temp file to avoid shell quoting issues
+                printf '%s' "$INPUT_TEST_PRS" > /tmp/test-prs.json
+                TRANSITION_CMD="$TRANSITION_CMD --test-prs \"$(cat /tmp/test-prs.json)\""
+              fi
+              eval "$TRANSITION_CMD" > /dev/null
+              # Return the updated document
+              RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
+              ;;
           esac
 
           # Write result to output (use heredoc delimiter for multi-line JSON)
@@ -126,7 +151,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           # Count — single doc modes always return 1
-          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" ]]; then
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]]; then
             echo "count=1" >> "$GITHUB_OUTPUT"
           else
             COUNT=$(echo "$RESULT" | node -e \
@@ -153,7 +178,7 @@ jobs:
           if [[ "$INPUT_MODE" == "list-by-state" ]]; then
             echo "| State filter | \`$INPUT_STATE\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" ]]; then
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]]; then
             echo "| Document ID | \`$INPUT_ID\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "| Records returned | $QUERY_COUNT |" >> "$GITHUB_STEP_SUMMARY"
