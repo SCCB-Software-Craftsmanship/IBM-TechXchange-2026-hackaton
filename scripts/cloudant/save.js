@@ -83,10 +83,22 @@ async function cmdTransition(args) {
     process.exit(1);
   }
 
+  // Optional --test-prs '{"unit":"<url>","integration":"<url>"}' — only used when
+  // transitioning to tests_implemented to record per-layer test PR links.
+  let testPrs = {};
+  if (args['test-prs']) {
+    try {
+      testPrs = JSON.parse(args['test-prs']);
+    } catch {
+      console.error('Error: --test-prs must be valid JSON (e.g. \'{"unit":"https://..."}\')');
+      process.exit(1);
+    }
+  }
+
   const { result: doc } = await client.getDocument({ db: DB, docId: args['id'] });
-  const updated = transitionRun(doc, args['state']);
+  const updated = transitionRun(doc, args['state'], testPrs);
   const { result } = await client.putDocument({ db: DB, docId: updated._id, document: updated });
-  console.log(JSON.stringify({ id: result.id, state: updated.state, rev: result.rev }, null, 2));
+  console.log(JSON.stringify({ id: result.id, state: updated.state, test_prs: updated.test_prs, rev: result.rev }, null, 2));
   return result;
 }
 

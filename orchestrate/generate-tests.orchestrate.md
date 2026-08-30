@@ -145,55 +145,55 @@ If `TEST-SUITES.md` or `HEURISTICS.md` is missing, warn but continue:
 
 ## Phase 3 — Read the PR diffs
 
-Use the following procedure for **each** PR you need to diff (apply it twice: once for the
-feature PR, once for the testability PR if present). A merged PR returns an empty diff from
-`gh pr diff` — the correct source is the merge commit.
-
-### Diff procedure (apply per PR number)
-
-1. Call `execute_command` to check the PR's merge state:
-
-   ```bash
-   gh pr view <PR_NUMBER> --json state,mergeCommit --jq '{state:.state, sha:.mergeCommit.oid}'
-   ```
-
-2. **If `state` is `"OPEN"` or `"CLOSED"` (not yet merged or closed without merge):**
-
-   ```bash
-   gh pr diff <PR_NUMBER>
-   ```
-
-3. **If `state` is `"MERGED"`** — `gh pr diff` returns empty. Use the merge commit instead:
-
-   ```bash
-   git diff <SHA>^1 <SHA>
-   ```
-
-   Where `<SHA>` is the `mergeCommit.oid` returned in step 1.
-   `<SHA>^1` is the first parent — the commit on the base branch before the merge.
-
-   If the merge commit SHA is empty (squash merge recorded differently), fall back to:
-
-   ```bash
-   gh pr view <PR_NUMBER> --json commits \
-     --jq '[.commits[].oid] | last'
-   ```
-
-   Then diff that commit against its parent:
-
-   ```bash
-   git diff <LAST_COMMIT_SHA>^1 <LAST_COMMIT_SHA>
-   ```
+> **Note on merged PRs:** `gh pr diff` returns an empty result once a PR is merged.
+> Each step below has a fallback using `git diff` against the merge-base commit.
+> Always check whether the diff output is non-empty before proceeding.
 
 ### 3.1 — Feature PR diff
 
-Apply the diff procedure above to `{{ORIGINAL_PR_NUMBER}}`.
-This is the source of truth for what behavior needs to be tested.
+Call `execute_command` with:
+
+```bash
+gh pr diff {{ORIGINAL_PR_NUMBER}}
+```
+
+**If the output is empty** (PR already merged), resolve the merge commit and diff it:
+
+```bash
+# Get the merge commit SHA from PR metadata
+MERGE_SHA=$(gh pr view {{ORIGINAL_PR_NUMBER}} --json mergeCommit --jq '.mergeCommit.oid')
+
+# Diff the merge commit against its first parent (what changed in this PR)
+git fetch origin
+git diff "${MERGE_SHA}^1" "${MERGE_SHA}"
+```
+
+If both return empty, stop and report:
+> ⚠️ Could not retrieve a diff for PR #{{ORIGINAL_PR_NUMBER}}. The PR may have been
+> squash-merged with no traceable merge commit. Retrieve the diff manually and re-run.
+
+BLOCK — do not proceed.
+
+Read the full diff output. This is the source of truth for what behavior needs to be tested.
 
 ### 3.2 — Testability PR diff (if present)
 
-If `{{TESTABILITY_PR_NUMBER}}` is non-empty, apply the diff procedure above to
-`{{TESTABILITY_PR_NUMBER}}`.
+If `{{TESTABILITY_PR_NUMBER}}` is non-empty, call `execute_command` with:
+
+```bash
+gh pr diff {{TESTABILITY_PR_NUMBER}}
+```
+
+**If the output is empty** (testability PR already merged), apply the same fallback:
+
+```bash
+MERGE_SHA=$(gh pr view {{TESTABILITY_PR_NUMBER}} --json mergeCommit --jq '.mergeCommit.oid')
+git diff "${MERGE_SHA}^1" "${MERGE_SHA}"
+```
+
+If the testability PR diff cannot be recovered, warn and continue without it:
+> ⚠️ Could not retrieve diff for testability PR #{{TESTABILITY_PR_NUMBER}} — proceeding
+> without seam context. Tests will rely on current source code state only.
 
 This diff shows the seam changes (injected parameters, extracted functions) that make the
 behavior testable. Understanding these changes is essential for writing tests that use the
@@ -334,23 +334,27 @@ Capture the PR URL returned. **Resolve placeholder:** `{{TEST_PR_URL_<LAYER>}}`.
 
 ---
 
-## Phase 6 — Advance run state to tests_implemented
+## Phase 6 — Record test PRs and advance state to tests_implemented
 
-After all layer PRs are opened, call `execute_command`:
+After all layer PRs are opened, persist the per-layer PR links and advance the state.
 
-```bash
-gh workflow run testability-run-query.yml \
-  --ref main \
-  --field mode=claim \
-  --field id="{{RUN_ID}}"
-```
-
-Wait for the workflow, then call `execute_command` to do the final transition:
+Call `execute_command` to record the test PRs and transition in one command:
 
 ```bash
 node scripts/cloudant/save.js transition \
   --id "{{RUN_ID}}" \
-  --state tests_implemented
+  --state tests_implemented \
+  --test-prs '{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}","e2e":"{{TEST_PR_URL_e2e}}"}'
+```
+
+Omit keys for layers that produced no tests. For example, if only unit and integration
+layers were generated:
+
+```bash
+node scripts/cloudant/save.js transition \
+  --id "{{RUN_ID}}" \
+  --state tests_implemented \
+  --test-prs '{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}"}'
 ```
 
 ---
