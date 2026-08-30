@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { testabilityPrepSteps } from '~/data/testabilityProcess'
+
 const { data, runs, refresh } = useRuns()
 
 /* Not `pending` from useFetch — that is true while the server renders and
@@ -42,15 +44,25 @@ const selected = computed(() => {
   return list.find((r) => r.id === selectedId.value) ?? list[0] ?? null
 })
 
-/* Elapsed time between the stages a run has actually reached. */
+/* Elapsed time between the stages a run has actually reached.
+   Live documents rarely carry meta.timeline, so a reached stage without a
+   recorded timestamp falls back to created_at (first stage) or updated_at
+   (the run's current stage) rather than the misleading "not reached". */
 const legs = computed(() => {
   const run = selected.value
   if (!run) return []
   return stages.map((state, i) => {
-    const at = run.timeline[state] ?? null
+    const done = run.stageIndex >= i
+    const current = run.stageIndex === i
+    let at = run.timeline[state] ?? null
+    let approximate = false
+    if (!at && done) {
+      at = current ? run.updatedAt : i === 0 ? run.createdAt : null
+      approximate = at !== null
+    }
     const prev = i > 0 ? (run.timeline[stages[i - 1]!] ?? null) : null
     let elapsed: string | null = null
-    if (at && prev) {
+    if (at && prev && !approximate) {
       const mins = Math.round((new Date(at).getTime() - new Date(prev).getTime()) / 60000)
       elapsed = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`
     }
@@ -59,9 +71,10 @@ const legs = computed(() => {
       label: stageMeta[state]!.label,
       blurb: stageMeta[state]!.blurb,
       at,
+      approximate,
       elapsed,
-      done: run.stageIndex >= i,
-      current: run.stageIndex === i,
+      done,
+      current,
     }
   })
 })
@@ -71,6 +84,42 @@ const testPrEntries = computed(() =>
   layerOrder
     .filter((l) => selected.value?.testPrs?.[l])
     .map((l) => ({ layer: l, url: selected.value!.testPrs[l]! })),
+)
+
+/* What Bob's testability-prep run actually proves for the selected run —
+   grounded in real fields, never claiming more than the document supports. */
+const processSteps = computed(() => {
+  const run = selected.value
+  if (!run) return []
+  return testabilityPrepSteps.map((step) => ({ ...step, ...step.evidence(run) }))
+})
+
+/* Real commit history for the PR that led into this run — fetched live
+   from GitHub, separately from whatever Cloudant does or doesn't record. */
+const activity = ref<{ commits: any[]; error: string | null; loading: boolean }>({
+  commits: [],
+  error: null,
+  loading: false,
+})
+
+watch(
+  () => selected.value?.prLink,
+  async (prLink) => {
+    if (!prLink) {
+      activity.value = { commits: [], error: null, loading: false }
+      return
+    }
+    activity.value = { commits: [], error: null, loading: true }
+    try {
+      const res = await $fetch<{ commits: any[]; error: string | null }>('/api/pr-activity', {
+        query: { url: prLink },
+      })
+      activity.value = { commits: res.commits, error: res.error, loading: false }
+    } catch {
+      activity.value = { commits: [], error: 'Failed to load commit history.', loading: false }
+    }
+  },
+  { immediate: true },
 )
 </script>
 
@@ -292,7 +341,8 @@ const testPrEntries = computed(() =>
               </div>
               <p class="mt-1 text-[12.5px] leading-snug" style="color: var(--ink-muted)">{{ leg.blurb }}</p>
               <p class="mt-1 font-mono text-[11px]" style="color: var(--ink-faint)">
-                {{ leg.at ? formatDate(leg.at) : 'not reached' }}
+                <template v-if="leg.at">{{ formatDate(leg.at) }}<span v-if="leg.approximate"> (approx.)</span></template>
+                <template v-else>not reached</template>
               </p>
             </div>
           </li>
@@ -384,6 +434,105 @@ const testPrEntries = computed(() =>
           </p>
         </div>
       </aside>
+
+      <!-- What led into this PR — real commit history from GitHub -->
+      <div class="lg:col-span-2">
+        <p class="eyebrow">What led into this PR</p>
+        <p class="mt-2 max-w-2xl text-[13px] leading-relaxed" style="color: var(--ink-faint)">
+          Live commit history from GitHub for {{ selected.prLink }} — not stored in Cloudant, fetched fresh.
+        </p>
+
+        <p v-if="activity.loading" class="mt-4 text-[12.5px]" style="color: var(--ink-faint)">Loading commits…</p>
+        <p
+          v-else-if="activity.error"
+          class="mt-4 rounded-md px-3 py-2 text-[12.5px]"
+          style="background: var(--warn-soft); color: var(--warn)"
+        >
+          {{ activity.error }}
+        </p>
+        <p v-else-if="!activity.commits.length" class="mt-4 text-[12.5px]" style="color: var(--ink-faint)">
+          No commits found on this PR.
+        </p>
+        <ol v-else class="mt-4 space-y-3">
+          <li
+            v-for="c in activity.commits"
+            :key="c.sha"
+            class="rounded-lg border p-3.5"
+            style="border-color: var(--line); background: var(--surface-raised)"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <a
+                :href="c.url"
+                target="_blank"
+                rel="noopener"
+                class="font-mono text-[11.5px] font-medium"
+                style="color: var(--accent)"
+              >
+                {{ c.sha }}
+              </a>
+              <span class="font-mono text-[11px]" style="color: var(--ink-faint)">
+                {{ c.author }} · {{ formatDate(c.date) }}
+              </span>
+            </div>
+            <p class="mt-1.5 text-[12.5px] leading-snug" style="color: var(--ink)">{{ c.headline }}</p>
+            <pre
+              v-if="c.body"
+              class="mt-1.5 overflow-x-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
+              style="color: var(--ink-faint)"
+            >{{ c.body }}</pre>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Bob's testability-prep procedure — grounded in SKILLS/testability-prep/SKILL.md -->
+      <div class="lg:col-span-2">
+        <p class="eyebrow">Bob's process for this run</p>
+        <p class="mt-2 max-w-2xl text-[13px] leading-relaxed" style="color: var(--ink-faint)">
+          The 12-step procedure <code class="font-mono">testability-prep</code> runs on every approved PR. Confirmed
+          steps are backed by a field on this document; implied steps have no per-run trace in Cloudant but must
+          have run for later steps to have produced their output.
+        </p>
+
+        <ol class="mt-4 space-y-0">
+          <li
+            v-for="step in processSteps"
+            :key="step.id"
+            class="flex gap-4 border-t py-3 first:border-t-0 first:pt-0"
+            :style="{ borderColor: 'var(--line)' }"
+          >
+            <span
+              class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold"
+              :style="{
+                background:
+                  step.tier === 'confirmed' ? 'var(--good-soft)' : step.tier === 'skipped' ? 'var(--surface-sunken)' : 'var(--accent-soft)',
+                color: step.tier === 'confirmed' ? 'var(--good)' : step.tier === 'skipped' ? 'var(--ink-faint)' : 'var(--accent)',
+              }"
+            >
+              {{ step.id }}
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="text-[12.5px] font-medium" style="color: var(--ink)">{{ step.title }}</span>
+                <span
+                  class="rounded-full px-2 py-0.5 font-mono text-[10px]"
+                  :style="{
+                    background:
+                      step.tier === 'confirmed' ? 'var(--good-soft)' : step.tier === 'skipped' ? 'var(--surface-sunken)' : 'var(--accent-soft)',
+                    color: step.tier === 'confirmed' ? 'var(--good)' : step.tier === 'skipped' ? 'var(--ink-faint)' : 'var(--accent)',
+                  }"
+                >
+                  {{ step.tier }}
+                </span>
+              </div>
+              <p class="mt-1 text-[12px] leading-snug" style="color: var(--ink-muted)">{{ step.note }}</p>
+              <pre
+                class="mt-1.5 overflow-x-auto rounded-md px-2.5 py-2 font-mono text-[10.5px] leading-relaxed"
+                style="background: var(--surface-sunken); color: var(--ink-faint)"
+              >{{ step.commands.join('\n') }}</pre>
+            </div>
+          </li>
+        </ol>
+      </div>
     </div>
 
     <p v-else class="reveal mt-6 text-center text-sm" style="color: var(--ink-faint)">
