@@ -24,6 +24,13 @@ function prNumberFromLink(link: string): number | null {
   return match ? Number(match[1]) : null
 }
 
+/** Some writers save the JS string "null" instead of a real null/empty value. */
+function cleanLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null
+  const trimmed = link.trim()
+  return trimmed && trimmed !== 'null' ? trimmed : null
+}
+
 /**
  * Flatten a raw Cloudant document into the shape the UI consumes.
  * Live documents may carry nothing in `meta`, so every display field
@@ -43,7 +50,7 @@ function normalise(doc: any) {
     prTitle: meta.pr_title ?? (prNumber ? `Pull request #${prNumber}` : 'Untitled run'),
     author: meta.author ?? null,
     branch: meta.branch ?? null,
-    testabilityPrLink: doc.testability_pr_link || null,
+    testabilityPrLink: cleanLink(doc.testability_pr_link),
     barriers: doc.barriers_resolved ?? [],
     summary: doc.summary ?? '',
     testPrs: doc.test_prs ?? {},
