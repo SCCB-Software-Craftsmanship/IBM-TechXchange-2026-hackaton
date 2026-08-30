@@ -38,7 +38,9 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      args[key] = next && !next.startsWith('--') ? (i++, next) : true;
+      // Consume next token as value when it exists and isn't itself a flag —
+      // including empty strings (""), which are valid explicit values.
+      args[key] = (next !== undefined && !next.startsWith('--')) ? (i++, next) : true;
     } else {
       args['_command'] = a;
     }

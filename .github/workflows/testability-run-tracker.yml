@@ -75,24 +75,33 @@ jobs:
         env:
           CLOUDANT_URL: ${{ secrets.CLOUDANT_URL }}
           CLOUDANT_API_KEY: ${{ secrets.CLOUDANT_API_KEY }}
+          SAVE_PR_LINK: ${{ steps.inputs.outputs.pr_link }}
+          SAVE_TESTABILITY_PR_LINK: ${{ steps.inputs.outputs.testability_pr_link }}
+          SAVE_BARRIERS: ${{ steps.inputs.outputs.barriers }}
+          SAVE_SUMMARY: ${{ steps.inputs.outputs.summary }}
         run: |
           RESULT=$(node scripts/cloudant/save.js create \
-            --pr-link "${{ steps.inputs.outputs.pr_link }}" \
-            --testability-pr-link "${{ steps.inputs.outputs.testability_pr_link }}" \
-            --barriers "${{ steps.inputs.outputs.barriers }}" \
-            --summary "${{ steps.inputs.outputs.summary }}")
+            --pr-link "$SAVE_PR_LINK" \
+            --testability-pr-link "$SAVE_TESTABILITY_PR_LINK" \
+            --barriers "$SAVE_BARRIERS" \
+            --summary "$SAVE_SUMMARY")
           echo "$RESULT"
           DOC_ID=$(echo "$RESULT" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).id))")
           echo "doc_id=$DOC_ID" >> "$GITHUB_OUTPUT"
 
       - name: Summary
+        env:
+          SUMMARY_DOC_ID: ${{ steps.save.outputs.doc_id }}
+          SUMMARY_PR_LINK: ${{ steps.inputs.outputs.pr_link }}
+          SUMMARY_TESTABILITY_PR_LINK: ${{ steps.inputs.outputs.testability_pr_link }}
+          SUMMARY_BARRIERS: ${{ steps.inputs.outputs.barriers }}
         run: |
           echo "### ✅ TestabilityRun saved to Cloudant" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Document ID | \`${{ steps.save.outputs.doc_id }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Document ID | \`$SUMMARY_DOC_ID\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Initial state | \`tests_not_yet_implemented\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| PR link | ${{ steps.inputs.outputs.pr_link }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Testability PR | ${{ steps.inputs.outputs.testability_pr_link }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Barriers | ${{ steps.inputs.outputs.barriers }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR link | $SUMMARY_PR_LINK |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Testability PR | $SUMMARY_TESTABILITY_PR_LINK |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Barriers | $SUMMARY_BARRIERS |" >> "$GITHUB_STEP_SUMMARY"
