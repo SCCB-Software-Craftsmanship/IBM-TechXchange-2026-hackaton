@@ -99,6 +99,9 @@ and query workflows read `CLOUDANT_URL`/`CLOUDANT_API_KEY` from repository secre
 never from anything in your clone. Credentials are only needed locally if you run
 `scripts/cloudant/*.js` directly or run the site with live data (see `.env.example`).
 
+To provision your own IBM Cloud infrastructure from scratch — Cloudant plus the
+IAM key CI uses — follow the CLI runbook in [`iac/DEPLOY.md`](iac/DEPLOY.md).
+
 Then run onboarding once, from inside Bob:
 
 ```
@@ -129,7 +132,7 @@ Full command reference, including every workflow input and the end-to-end agent 
 | [`scripts/cloudant/`](scripts/cloudant) | `TestabilityRun` schema, state machine and CLI |
 | [`scripts/HOWTOUSE.md`](scripts/HOWTOUSE.md) | The agent-facing contract for every interface |
 | [`.github/workflows/`](.github/workflows) | Tracker and query workflows — the only path to Cloudant |
-| [`iac/`](iac) | OpenTofu configuration for the Cloudant instance and its IAM key |
+| [`iac/`](iac) | OpenTofu configuration for the Cloudant instance and its IAM key — [`DEPLOY.md`](iac/DEPLOY.md) is the CLI build-and-deploy runbook |
 | [`site/`](site) | Nuxt dashboard reading the same database |
 | [`bob-sessions/`](bob-sessions) | Session evidence, one screenshot per task |
 
