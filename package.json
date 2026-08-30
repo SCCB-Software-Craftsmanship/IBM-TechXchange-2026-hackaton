@@ -1,0 +1,17 @@
+{
+  "name": "vibebobbing-iac",
+  "version": "0.1.0",
+  "description": "VibeBobbing — IBM Cloud scripts (Cloudant, Code Engine, etc.)",
+  "type": "module",
+  "scripts": {
+    "cloudant:bootstrap": "node scripts/cloudant/bootstrap.js",
+    "cloudant:save": "node scripts/cloudant/save.js",
+    "cloudant:list": "node scripts/cloudant/save.js list"
+  },
+  "dependencies": {
+    "@ibm-cloud/cloudant": "^0.9.1",
+    "dotenv": "^16.4.7",
+    "ibm-cloud-sdk-core": "^5.3.2",
+    "uuid": "^11.1.0"
+  }
+}

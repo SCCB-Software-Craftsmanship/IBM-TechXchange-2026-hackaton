@@ -1,0 +1,142 @@
+/**
+ * save.js — CLI for creating, updating, and listing TestabilityRun records.
+ *
+ * Commands:
+ *
+ *   Create a new run (initial state = tests_not_yet_implemented):
+ *     node scripts/cloudant/save.js create \
+ *       --pr-link <url> \
+ *       [--testability-pr-link <url>] \
+ *       [--barriers B2,B3] \
+ *       [--summary "..."]
+ *
+ *   Transition an existing run to the next state:
+ *     node scripts/cloudant/save.js transition \
+ *       --id <doc-id> \
+ *       --state tests_in_progress
+ *
+ *   List all runs (optionally filtered by state):
+ *     node scripts/cloudant/save.js list [--state tests_not_yet_implemented]
+ *
+ *   Get a single run by ID:
+ *     node scripts/cloudant/save.js get --id <doc-id>
+ */
+
+import client from './client.js';
+import { createTestabilityRun, transitionRun, RunState } from './testabilityRun.js';
+
+const DB = 'testability-runs';
+
+// ---------------------------------------------------------------------------
+// Tiny arg parser (no external dep)
+// ---------------------------------------------------------------------------
+function parseArgs(argv) {
+  const args = {};
+  let i = 0;
+  while (i < argv.length) {
+    const a = argv[i];
+    if (a.startsWith('--')) {
+      const key = a.slice(2);
+      const next = argv[i + 1];
+      args[key] = next && !next.startsWith('--') ? (i++, next) : true;
+    } else {
+      args['_command'] = a;
+    }
+    i++;
+  }
+  return args;
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+async function cmdCreate(args) {
+  if (!args['pr-link']) {
+    console.error('Error: --pr-link is required for create.');
+    process.exit(1);
+  }
+
+  const doc = createTestabilityRun({
+    prLink: args['pr-link'],
+    testabilityPrLink: args['testability-pr-link'] ?? null,
+    barriersResolved: args['barriers'] ? args['barriers'].split(',').map(s => s.trim()) : [],
+    summary: args['summary'] ?? '',
+  });
+
+  const { result } = await client.postDocument({ db: DB, document: doc });
+  console.log(JSON.stringify({ id: result.id, state: doc.state, rev: result.rev }, null, 2));
+  return result;
+}
+
+async function cmdTransition(args) {
+  if (!args['id'] || !args['state']) {
+    console.error('Error: --id and --state are required for transition.');
+    process.exit(1);
+  }
+  if (!Object.values(RunState).includes(args['state'])) {
+    console.error(`Error: invalid state '${args['state']}'. Valid values: ${Object.values(RunState).join(', ')}`);
+    process.exit(1);
+  }
+
+  const { result: doc } = await client.getDocument({ db: DB, docId: args['id'] });
+  const updated = transitionRun(doc, args['state']);
+  const { result } = await client.putDocument({ db: DB, docId: updated._id, document: updated });
+  console.log(JSON.stringify({ id: result.id, state: updated.state, rev: result.rev }, null, 2));
+  return result;
+}
+
+async function cmdList(args) {
+  const selector = { type: { '$eq': 'testability-run' } };
+  if (args['state']) {
+    selector.state = { '$eq': args['state'] };
+  }
+
+  const { result } = await client.postFind({
+    db: DB,
+    selector,
+    limit: 50,
+  });
+
+  const rows = result.docs.map(d => ({
+    id: d._id,
+    state: d.state,
+    pr_link: d.pr_link,
+    testability_pr_link: d.testability_pr_link,
+    barriers_resolved: d.barriers_resolved,
+    created_at: d.created_at,
+  }));
+
+  console.log(JSON.stringify(rows, null, 2));
+  return rows;
+}
+
+async function cmdGet(args) {
+  if (!args['id']) {
+    console.error('Error: --id is required for get.');
+    process.exit(1);
+  }
+  const { result: doc } = await client.getDocument({ db: DB, docId: args['id'] });
+  console.log(JSON.stringify(doc, null, 2));
+  return doc;
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+const args = parseArgs(process.argv.slice(2));
+const command = args['_command'];
+
+const commands = { create: cmdCreate, transition: cmdTransition, list: cmdList, get: cmdGet };
+
+if (!command || !commands[command]) {
+  console.error(`Usage: node scripts/cloudant/save.js <create|transition|list|get> [options]`);
+  console.error(`Valid states: ${Object.values(RunState).join(', ')}`);
+  process.exit(1);
+}
+
+commands[command](args).catch((err) => {
+  console.error('Error:', err.message ?? err);
+  process.exit(1);
+});
