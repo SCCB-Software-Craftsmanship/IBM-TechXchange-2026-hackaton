@@ -43,10 +43,6 @@ Phase 6 — Advance run state         → transition to tests_implemented in Clo
 
 ## Phase 0 — Prerequisites
 
-Before anything else, verify the two tools this prompt calls directly.
-
-### 0.1 — Verify gh CLI is authenticated
-
 Call `execute_command` with:
 
 ```bash
@@ -57,25 +53,6 @@ If the command fails or shows "not logged in", stop and report:
 > ⚠️ `gh` CLI is not authenticated. Run `gh auth login` and re-run this prompt.
 
 BLOCK — do not proceed.
-
-### 0.2 — Verify Node.js is available
-
-Call `execute_command` with:
-
-```bash
-node --version && npm ls --depth=0 2>/dev/null | head -1
-```
-
-This prompt calls `node scripts/cloudant/save.js` directly in Phase 6. Node must be
-present and `npm install` must have been run.
-
-If `node` is not found, stop and report:
-> ⚠️ Node.js is not installed or not on PATH. Install Node.js 22+ and re-run.
-
-If the `npm ls` check indicates no `node_modules`, stop and report:
-> ⚠️ Node dependencies not installed. Run `npm ci` from the repository root and re-run.
-
-BLOCK — do not proceed on either failure.
 
 ---
 
@@ -374,25 +351,28 @@ Capture the PR URL returned. **Resolve placeholder:** `{{TEST_PR_URL_<LAYER>}}`.
 
 ## Phase 6 — Record test PRs and advance state to tests_implemented
 
-After all layer PRs are opened, persist the per-layer PR links and advance the state.
+After all layer PRs are opened, persist the per-layer PR links and advance the state via
+the `testability-run-query` GitHub Actions workflow — no local credentials required.
 
-Call `execute_command` to record the test PRs and transition in one command:
+Build a JSON string containing only the layers that produced tests (omit empty layers),
+then call `execute_command`:
 
 ```bash
-node scripts/cloudant/save.js transition \
-  --id "{{RUN_ID}}" \
-  --state tests_implemented \
-  --test-prs '{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}","e2e":"{{TEST_PR_URL_e2e}}"}'
+gh workflow run testability-run-query.yml \
+  --ref main \
+  --field mode=transition \
+  --field id="{{RUN_ID}}" \
+  --field state=tests_implemented \
+  --field test_prs='{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}","e2e":"{{TEST_PR_URL_e2e}}"}'
 ```
 
-Omit keys for layers that produced no tests. For example, if only unit and integration
-layers were generated:
+Wait for the workflow to complete and confirm the returned document has
+`state: tests_implemented`:
 
 ```bash
-node scripts/cloudant/save.js transition \
-  --id "{{RUN_ID}}" \
-  --state tests_implemented \
-  --test-prs '{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}"}'
+RUN_ID=$(gh run list --workflow=testability-run-query.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
+gh run view "$RUN_ID" --log | grep -A 99999 "=== RESULT"
 ```
 
 ---
