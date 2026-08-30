@@ -48,7 +48,16 @@ Every document stored in the `testability-runs` Cloudant database has the follow
   "summary": "Two time-coupling barriers removed; the PR's core logic is now fully unit-testable.",
   "created_at": "2026-08-30T05:04:40.657Z",
   "updated_at": "2026-08-30T05:04:40.657Z",
-  "meta": {}
+  "meta": {
+    "pr_number": 42,
+    "pr_title": "feat: add optional widget",
+    "author": "octocat",
+    "branch": "feat/widget",
+    "metrics": {
+      "before": { "open_barriers": 2 },
+      "after": { "open_barriers": 0, "seams": 2 }
+    }
+  }
 }
 ```
 
@@ -63,7 +72,7 @@ Every document stored in the `testability-runs` Cloudant database has the follow
 | `summary` | string | "Overall assessment" sentence from `testability-prep` Step 11 |
 | `created_at` | ISO 8601 | When the run was first saved |
 | `updated_at` | ISO 8601 | When the state was last changed |
-| `meta` | object | Optional extra key/value pairs (model version, skill version, etc.) |
+| `meta` | object | Extra fields set by whatever wrote the run. `testability-prep` Step 12 sets `pr_number`, `pr_title`, `author`, `branch`, and `metrics.before/after.open_barriers` + `metrics.after.seams` — the only numbers it can honestly know at that point. `generate-tests` is expected to later extend `metrics.after` with real test counts, assertions, and coverage once tests actually exist — it does not do so yet. Any field not set by a real writer is absent, not zero; the site fills in `0`/`unknown` for missing fields rather than guessing. |
 
 ---
 
@@ -117,6 +126,7 @@ gh auth status
 | `testability_pr_link` | no | URL of the child testability PR, or leave blank if none was opened |
 | `barriers_resolved` | no | Comma-separated barrier IDs (e.g. `B2,B3`), or blank |
 | `summary` | no | "Overall assessment" sentence from `testability-prep` Step 11 |
+| `meta` | no | JSON object — `pr_number`, `pr_title`, `author`, `branch`, `metrics.before/after`. The workflow passes this straight through to `save.js` as a real shell argument — never concatenate it into a command string and `eval` it (that pattern previously corrupted `test_prs` JSON the same way). |
 
 #### Usage
 
@@ -127,7 +137,8 @@ gh workflow run testability-run-tracker.yml \
   --field pr_link="https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/42" \
   --field testability_pr_link="https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/43" \
   --field barriers_resolved="B2,B3" \
-  --field summary="Two time-coupling barriers removed; core logic is now fully unit-testable."
+  --field summary="Two time-coupling barriers removed; core logic is now fully unit-testable." \
+  --field meta='{"pr_number":42,"pr_title":"...","author":"octocat","branch":"feat/x","metrics":{"before":{"open_barriers":2},"after":{"open_barriers":0,"seams":2}}}'
 
 # Check result
 gh run list --workflow=testability-run-tracker.yml --limit 1

@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: ''
+      meta:
+        description: 'JSON object of extra fields (pr_number, pr_title, author, branch, metrics.before/after) — leave blank for none'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   save-testability-run:
@@ -52,11 +57,18 @@ jobs:
           echo "pr_link=${{ inputs.pr_link }}"                         >> "$GITHUB_OUTPUT"
           echo "testability_pr_link=${{ inputs.testability_pr_link }}" >> "$GITHUB_OUTPUT"
           echo "barriers=${{ inputs.barriers_resolved }}"              >> "$GITHUB_OUTPUT"
-          # Summary can be multi-line — write via a heredoc delimiter
+          # Summary and meta can contain characters unsafe for a single output line
+          # (quotes, newlines) — write both via a heredoc delimiter, never interpolated
+          # into a command string later (that's what caused the --test-prs quoting bug).
           EOF_DELIM=$(openssl rand -hex 8)
           echo "summary<<$EOF_DELIM"     >> "$GITHUB_OUTPUT"
           echo "${{ inputs.summary }}"   >> "$GITHUB_OUTPUT"
           echo "$EOF_DELIM"              >> "$GITHUB_OUTPUT"
+
+          META_DELIM=$(openssl rand -hex 8)
+          echo "meta<<$META_DELIM"       >> "$GITHUB_OUTPUT"
+          echo "${{ inputs.meta }}"      >> "$GITHUB_OUTPUT"
+          echo "$META_DELIM"             >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
       # Bootstrap DB (idempotent — safe to run every time)
@@ -79,12 +91,22 @@ jobs:
           SAVE_TESTABILITY_PR_LINK: ${{ steps.inputs.outputs.testability_pr_link }}
           SAVE_BARRIERS: ${{ steps.inputs.outputs.barriers }}
           SAVE_SUMMARY: ${{ steps.inputs.outputs.summary }}
+          SAVE_META: ${{ steps.inputs.outputs.meta }}
         run: |
-          RESULT=$(node scripts/cloudant/save.js create \
-            --pr-link "$SAVE_PR_LINK" \
-            --testability-pr-link "$SAVE_TESTABILITY_PR_LINK" \
-            --barriers "$SAVE_BARRIERS" \
-            --summary "$SAVE_SUMMARY")
+          if [[ -n "$SAVE_META" ]]; then
+            RESULT=$(node scripts/cloudant/save.js create \
+              --pr-link "$SAVE_PR_LINK" \
+              --testability-pr-link "$SAVE_TESTABILITY_PR_LINK" \
+              --barriers "$SAVE_BARRIERS" \
+              --summary "$SAVE_SUMMARY" \
+              --meta "$SAVE_META")
+          else
+            RESULT=$(node scripts/cloudant/save.js create \
+              --pr-link "$SAVE_PR_LINK" \
+              --testability-pr-link "$SAVE_TESTABILITY_PR_LINK" \
+              --barriers "$SAVE_BARRIERS" \
+              --summary "$SAVE_SUMMARY")
+          fi
           echo "$RESULT"
           DOC_ID=$(echo "$RESULT" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).id))")
           echo "doc_id=$DOC_ID" >> "$GITHUB_OUTPUT"

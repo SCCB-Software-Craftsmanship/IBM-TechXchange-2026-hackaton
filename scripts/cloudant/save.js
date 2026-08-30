@@ -9,7 +9,9 @@
  *       --pr-link <url> \
  *       [--testability-pr-link <url>] \
  *       [--barriers B2,B3] \
- *       [--summary "..."]
+ *       [--summary "..."] \
+ *       [--meta '{"pr_number":42,"pr_title":"...","author":"...","branch":"...",
+ *                 "metrics":{"before":{"open_barriers":2},"after":{"open_barriers":0,"seams":2}}}']
  *
  *   Transition an existing run to the next state:
  *     node scripts/cloudant/save.js transition \
@@ -61,11 +63,25 @@ async function cmdCreate(args) {
     process.exit(1);
   }
 
+  // Optional --meta '{"pr_number":42,"metrics":{"before":{...},"after":{...}}}' —
+  // arbitrary extra fields (PR identity, testability-prep's own metrics) the site
+  // reads to render more than the bare minimum fields.
+  let meta = {};
+  if (args['meta']) {
+    try {
+      meta = JSON.parse(args['meta']);
+    } catch {
+      console.error('Error: --meta must be valid JSON (e.g. \'{"pr_number":42}\')');
+      process.exit(1);
+    }
+  }
+
   const doc = createTestabilityRun({
     prLink: args['pr-link'],
     testabilityPrLink: args['testability-pr-link'] ?? null,
     barriersResolved: args['barriers'] ? args['barriers'].split(',').map(s => s.trim()) : [],
     summary: args['summary'] ?? '',
+    meta,
   });
 
   const { result } = await client.postDocument({ db: DB, document: doc });
