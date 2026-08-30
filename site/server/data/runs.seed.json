@@ -1,0 +1,269 @@
+{
+  "generated_at": "2026-08-30T09:00:00.000Z",
+  "note": "Illustrative TestabilityRun documents shaped exactly like the Cloudant schema. Set CLOUDANT_URL and CLOUDANT_API_KEY to read the live database instead.",
+  "docs": [
+    {
+      "_id": "e54107c0-93ba-4da8-bef6-df278e6df76f",
+      "type": "testability-run",
+      "state": "tests_verified",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/11",
+      "testability_pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/11",
+      "barriers_resolved": ["B3", "B4"],
+      "summary": "createTestabilityRun called new Date() and uuidv4() directly in the function body, so no test could assert on created_at or _id. Both were promoted to injectable parameters with production defaults — two barriers removed, no abstraction added.",
+      "test_prs": {
+        "unit": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/11"
+      },
+      "created_at": "2026-08-29T18:12:04.221Z",
+      "updated_at": "2026-08-30T07:41:55.902Z",
+      "meta": {
+        "pr_number": 11,
+        "pr_title": "feat(tracker): TestabilityRun Cloudant schema and GH Actions tracker workflow",
+        "author": "danrleypereira",
+        "branch": "feat/cloudant-tracker",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-29T18:12:04.221Z",
+          "tests_in_progress": "2026-08-29T21:03:19.640Z",
+          "tests_implemented": "2026-08-30T02:47:11.008Z",
+          "tests_verified": "2026-08-30T07:41:55.902Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 0,
+            "testable_units": 6,
+            "open_barriers": 2,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 94,
+            "testable_units": 6,
+            "open_barriers": 0,
+            "seams": 2,
+            "assertions": 51,
+            "suite_runtime_s": 0.38,
+            "tests": { "unit": 34, "integration": 0, "e2e": 0 }
+          }
+        }
+      }
+    },
+    {
+      "_id": "b7c31a55-2ef0-4a1d-9c68-1f5a0d4e7b22",
+      "type": "testability-run",
+      "state": "tests_implemented",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/7",
+      "testability_pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/7",
+      "barriers_resolved": ["B5", "B7"],
+      "summary": "The Cloudant client read process.env at module load, so importing it in a test required real credentials. Config is now resolved through a function argument that defaults to the environment — the module imports cleanly with nothing set.",
+      "test_prs": {
+        "unit": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/7",
+        "integration": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/7"
+      },
+      "created_at": "2026-08-29T20:31:47.115Z",
+      "updated_at": "2026-08-30T06:18:02.774Z",
+      "meta": {
+        "pr_number": 7,
+        "pr_title": "feat(iac): Cloudant infrastructure as code with OpenTofu",
+        "author": "Edupizzol",
+        "branch": "feat/cloudant-iac",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-29T20:31:47.115Z",
+          "tests_in_progress": "2026-08-30T01:12:30.500Z",
+          "tests_implemented": "2026-08-30T06:18:02.774Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 0,
+            "testable_units": 4,
+            "open_barriers": 2,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 71,
+            "testable_units": 4,
+            "open_barriers": 0,
+            "seams": 2,
+            "assertions": 18,
+            "suite_runtime_s": 0.91,
+            "tests": { "unit": 10, "integration": 4, "e2e": 0 }
+          }
+        }
+      }
+    },
+    {
+      "_id": "3fa9d012-88b4-4e7c-a0d3-6b1c9e2f4405",
+      "type": "testability-run",
+      "state": "tests_in_progress",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/12",
+      "testability_pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/12",
+      "barriers_resolved": ["B2"],
+      "summary": "The suite reader walked the filesystem through direct fs calls inside its own body, so a test could not point it at a fixture tree. The directory reader is now a parameter with the real fs as its default.",
+      "test_prs": {},
+      "created_at": "2026-08-30T03:22:09.880Z",
+      "updated_at": "2026-08-30T08:05:44.310Z",
+      "meta": {
+        "pr_number": 12,
+        "pr_title": "feat(skills): add scan-test-suites skill and analyze-tests orchestrator",
+        "author": "pedruck",
+        "branch": "add--bob-create-testing-skills",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-30T03:22:09.880Z",
+          "tests_in_progress": "2026-08-30T08:05:44.310Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 0,
+            "testable_units": 3,
+            "open_barriers": 1,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 46,
+            "testable_units": 3,
+            "open_barriers": 0,
+            "seams": 1,
+            "assertions": 9,
+            "suite_runtime_s": 0.44,
+            "tests": { "unit": 6, "integration": 0, "e2e": 0 }
+          }
+        }
+      }
+    },
+    {
+      "_id": "9d4e6b71-05c8-4f22-b3a7-8e0f1c5d9a63",
+      "type": "testability-run",
+      "state": "tests_not_yet_implemented",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/14",
+      "testability_pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/14",
+      "barriers_resolved": ["B4"],
+      "summary": "Layer subagents were dispatched without awaiting their completion before the state transition, so a test could never observe the finished set. The dispatch now returns a settled result the caller awaits.",
+      "test_prs": {},
+      "created_at": "2026-08-30T08:44:12.660Z",
+      "updated_at": "2026-08-30T08:44:12.660Z",
+      "meta": {
+        "pr_number": 14,
+        "pr_title": "feat(orchestrate): add generate-tests.orchestrate.md — full test generation pipeline",
+        "author": "pedruck",
+        "branch": "feat/generate-tests-orchestrator",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-30T08:44:12.660Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 0,
+            "testable_units": 5,
+            "open_barriers": 1,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 0,
+            "testable_units": 5,
+            "open_barriers": 0,
+            "seams": 1,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          }
+        }
+      }
+    },
+    {
+      "_id": "c1b8f430-7a26-49de-95f1-2d7e604b8cc9",
+      "type": "testability-run",
+      "state": "tests_not_yet_implemented",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/13",
+      "testability_pr_link": "",
+      "barriers_resolved": [],
+      "summary": "Documentation only — no production behaviour changed and no barrier was found. testability-prep opened a report-only PR and made no code change, which is the correct outcome under the non-negotiable rule.",
+      "test_prs": {},
+      "created_at": "2026-08-30T05:59:31.004Z",
+      "updated_at": "2026-08-30T05:59:31.004Z",
+      "meta": {
+        "pr_number": 13,
+        "pr_title": "docs: HOWTOUSE.md — agent contract for Cloudant workflows, actions and scripts",
+        "author": "danrleypereira",
+        "branch": "docs/howtouse-cloudant-workflows",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-30T05:59:31.004Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 0,
+            "testable_units": 0,
+            "open_barriers": 0,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 0,
+            "testable_units": 0,
+            "open_barriers": 0,
+            "seams": 0,
+            "assertions": 0,
+            "suite_runtime_s": 0,
+            "tests": { "unit": 0, "integration": 0, "e2e": 0 }
+          }
+        }
+      }
+    },
+    {
+      "_id": "5a2c7e98-4b13-4c0a-8f6d-3ab9d1e07f14",
+      "type": "testability-run",
+      "state": "tests_verified",
+      "pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/8",
+      "testability_pr_link": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/8",
+      "barriers_resolved": ["B1", "B6"],
+      "summary": "Barrier derivation kept its accumulator in module scope, so two runs in the same process contaminated each other. The accumulator moved inside the call and the derived list is now returned rather than mutated.",
+      "test_prs": {
+        "unit": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/8",
+        "integration": "https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/8"
+      },
+      "created_at": "2026-08-29T14:05:22.310Z",
+      "updated_at": "2026-08-30T04:27:38.115Z",
+      "meta": {
+        "pr_number": 8,
+        "pr_title": "feat(skills): add testability-heuristics skill and update testability-prep",
+        "author": "pedruck",
+        "branch": "feat--add-heuristics-skill-for-testability",
+        "timeline": {
+          "tests_not_yet_implemented": "2026-08-29T14:05:22.310Z",
+          "tests_in_progress": "2026-08-29T16:40:02.900Z",
+          "tests_implemented": "2026-08-29T23:14:50.221Z",
+          "tests_verified": "2026-08-30T04:27:38.115Z"
+        },
+        "metrics": {
+          "before": {
+            "coverage": 12,
+            "testable_units": 7,
+            "open_barriers": 2,
+            "seams": 1,
+            "assertions": 3,
+            "suite_runtime_s": 0.21,
+            "tests": { "unit": 2, "integration": 0, "e2e": 0 }
+          },
+          "after": {
+            "coverage": 88,
+            "testable_units": 7,
+            "open_barriers": 0,
+            "seams": 3,
+            "assertions": 42,
+            "suite_runtime_s": 1.24,
+            "tests": { "unit": 21, "integration": 6, "e2e": 2 }
+          }
+        }
+      }
+    }
+  ]
+}
