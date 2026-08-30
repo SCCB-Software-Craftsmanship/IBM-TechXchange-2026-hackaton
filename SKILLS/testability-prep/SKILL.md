@@ -349,6 +349,12 @@ never call it more than once per skill run.
 
 4. If the command exits 0, print:
    > ✓ Testability run queued in GitHub Actions — record will appear in Cloudant within ~1 min.
+   >
+   > Next: once the record lands, generate tests for it by opening
+   > `orchestrate/generate-tests.orchestrate.md` as a task (or pasting it as your
+   > initial prompt) — it will automatically pick up this run as the oldest
+   > unclaimed record in state `tests_not_yet_implemented`. No PR number or run ID
+   > needs to be passed by hand.
 
    If it exits non-zero, print the error output and add:
    > ⚠️ Could not dispatch workflow. Run manually via the GitHub Actions UI or:

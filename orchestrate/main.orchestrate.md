@@ -168,9 +168,12 @@ After `analyze-tests` Phase 3 (confirm and report) completes, print:
   HEURISTICS.md    ✓  (<N> barrier entries: <IDs>)
 
 ### Project is ready for
-  Per-PR testability analysis (on demand when a PR is approved):
+  Per-PR testability analysis (on demand when a PR is approved) — this is a
+  skill, invoke it with:
     bob -p "run testability-prep on PR #<number>"
 
-  Test generation (on demand from Cloudant queue):
-    Open orchestrate/generate-tests.orchestrate.md as a task
+  Test generation (on demand from Cloudant queue) — this is an orchestration
+  prompt, not a skill, so `bob -p` will not find it. Invoke it by opening
+  orchestrate/generate-tests.orchestrate.md as a task, or by pasting its full
+  contents as your initial prompt.
 ```

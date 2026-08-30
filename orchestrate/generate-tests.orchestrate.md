@@ -34,6 +34,7 @@ Phase 4 — Generate tests by layer   → parallel subagents, one per pyramid la
         │
         ▼
 Phase 5 — Open PRs by layer         → one PR per layer, base = feature branch
+                                       + cross-linked as sibling comments
         │
         ▼
 Phase 6 — Advance run state         → transition to tests_implemented in Cloudant
@@ -60,24 +61,48 @@ BLOCK — do not proceed.
 
 ### 1.1 — List unclaimed runs
 
+> **Note on `WORKFLOW_RUN_ID` vs `{{RUN_ID}}`:** this phase dispatches a GitHub Actions
+> workflow, which has its own run ID on GitHub — that is `WORKFLOW_RUN_ID` below, a plain
+> shell variable, and it is discarded once this step finishes. It is unrelated to
+> `{{RUN_ID}}`, the Cloudant *document* ID resolved later in this step, which is the value
+> that flows through the rest of this prompt. Never conflate the two.
+
 Call `execute_command` with:
 
 ```bash
+DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gh workflow run testability-run-query.yml \
   --ref main \
   --field mode=list-by-state \
   --field state=tests_not_yet_implemented
 ```
 
-Then wait for the workflow to finish and capture the JSON output:
+Then find the run this dispatch just created — filtering by dispatch time avoids grabbing
+someone else's concurrently-running workflow, which a bare `--limit 1` would risk:
 
 ```bash
-RUN_ID=$(gh run list --workflow=testability-run-query.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run watch "$RUN_ID" --exit-status
-gh run view "$RUN_ID" --log | grep -A 99999 "=== RESULT"
+WORKFLOW_RUN_ID=""
+for i in $(seq 1 15); do
+  WORKFLOW_RUN_ID=$(gh run list --workflow=testability-run-query.yml \
+    --created ">=${DISPATCH_TIME}" --json databaseId --jq '.[0].databaseId')
+  [ -n "$WORKFLOW_RUN_ID" ] && break
+  sleep 2
+done
+if [ -z "$WORKFLOW_RUN_ID" ]; then
+  echo "⚠️ Could not find the dispatched workflow run on GitHub Actions after 30s."
+  exit 1
+fi
+gh run watch "$WORKFLOW_RUN_ID" --exit-status
+gh run view "$WORKFLOW_RUN_ID" --log | grep -A 99999 "=== RESULT"
 ```
 
-Parse the JSON array. If it is empty, stop and report:
+If the "could not find" message prints, stop and report:
+> ⚠️ Dispatched `testability-run-query.yml` but could not locate the resulting run on
+> GitHub Actions. Check the Actions tab manually and re-run this prompt.
+
+BLOCK — do not proceed.
+
+Parse the JSON array from the captured RESULT output. If it is empty, stop and report:
 > ℹ️ No runs in state `tests_not_yet_implemented`. Nothing to generate.
 
 BLOCK — do not proceed.
@@ -96,13 +121,33 @@ If there are multiple records, pick the one with the earliest `created_at`.
 Call `execute_command` with:
 
 ```bash
+DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gh workflow run testability-run-query.yml \
   --ref main \
   --field mode=claim \
   --field id="{{RUN_ID}}"
 ```
 
-Wait for the workflow and confirm the returned document has `state: tests_in_progress`.
+Then locate and wait on the resulting run the same way as in 1.1 — filter by dispatch time,
+not `--limit 1`, so a concurrently-running claim from another agent isn't picked up by mistake:
+
+```bash
+WORKFLOW_RUN_ID=""
+for i in $(seq 1 15); do
+  WORKFLOW_RUN_ID=$(gh run list --workflow=testability-run-query.yml \
+    --created ">=${DISPATCH_TIME}" --json databaseId --jq '.[0].databaseId')
+  [ -n "$WORKFLOW_RUN_ID" ] && break
+  sleep 2
+done
+if [ -z "$WORKFLOW_RUN_ID" ]; then
+  echo "⚠️ Could not find the dispatched workflow run on GitHub Actions after 30s."
+  exit 1
+fi
+gh run watch "$WORKFLOW_RUN_ID" --exit-status
+gh run view "$WORKFLOW_RUN_ID" --log | grep -A 99999 "=== RESULT"
+```
+
+Confirm the returned document has `state: tests_in_progress`.
 If the document was already `tests_in_progress` (race condition), stop and report:
 > ⚠️ Run `{{RUN_ID}}` was already claimed by another agent. Re-run this prompt to pick the next available run.
 
@@ -347,6 +392,24 @@ gh pr create \
 
 Capture the PR URL returned. **Resolve placeholder:** `{{TEST_PR_URL_<LAYER>}}`.
 
+### 5.4 — Cross-link sibling test PRs
+
+If more than one layer produced a PR, a reviewer looking at any single layer's PR has no way
+to discover the others without going back to Cloudant. Fix that by commenting on each opened
+PR with links to its siblings.
+
+After all layers in Phase 5 have run, for each `{{TEST_PR_URL_<LAYER>}}` that was opened, call
+`execute_command`:
+
+```bash
+gh pr comment {{TEST_PR_URL_<LAYER>}} --body "Sibling test PRs for PR #{{ORIGINAL_PR_NUMBER}} (\"{{ORIGINAL_PR_TITLE}}\"):
+<one bullet per OTHER layer that produced a PR, e.g.>
+- integration — {{TEST_PR_URL_integration}}
+- e2e — {{TEST_PR_URL_e2e}}"
+```
+
+Skip this step entirely if only one layer produced a PR — there is nothing to cross-link.
+
 ---
 
 ## Phase 6 — Record test PRs and advance state to tests_implemented
@@ -358,6 +421,7 @@ Build a JSON string containing only the layers that produced tests (omit empty l
 then call `execute_command`:
 
 ```bash
+DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gh workflow run testability-run-query.yml \
   --ref main \
   --field mode=transition \
@@ -366,14 +430,26 @@ gh workflow run testability-run-query.yml \
   --field test_prs='{"unit":"{{TEST_PR_URL_unit}}","integration":"{{TEST_PR_URL_integration}}","e2e":"{{TEST_PR_URL_e2e}}"}'
 ```
 
-Wait for the workflow to complete and confirm the returned document has
-`state: tests_implemented`:
+Then locate and wait on the resulting run the same way as in Phase 1 — filter by dispatch
+time, not `--limit 1`, to avoid picking up an unrelated concurrent workflow run:
 
 ```bash
-RUN_ID=$(gh run list --workflow=testability-run-query.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run watch "$RUN_ID" --exit-status
-gh run view "$RUN_ID" --log | grep -A 99999 "=== RESULT"
+WORKFLOW_RUN_ID=""
+for i in $(seq 1 15); do
+  WORKFLOW_RUN_ID=$(gh run list --workflow=testability-run-query.yml \
+    --created ">=${DISPATCH_TIME}" --json databaseId --jq '.[0].databaseId')
+  [ -n "$WORKFLOW_RUN_ID" ] && break
+  sleep 2
+done
+if [ -z "$WORKFLOW_RUN_ID" ]; then
+  echo "⚠️ Could not find the dispatched workflow run on GitHub Actions after 30s."
+  exit 1
+fi
+gh run watch "$WORKFLOW_RUN_ID" --exit-status
+gh run view "$WORKFLOW_RUN_ID" --log | grep -A 99999 "=== RESULT"
 ```
+
+Confirm the returned document has `state: tests_implemented`.
 
 ---
 
