@@ -129,14 +129,19 @@ jobs:
               ;;
 
             transition)
-              # Build the transition command — optionally include --test-prs
-              TRANSITION_CMD="node scripts/cloudant/save.js transition --id \"$INPUT_ID\" --state \"$INPUT_STATE\""
+              # Pass test_prs straight through as a real shell argument — no string
+              # concatenation, no eval. The JSON's own quotes previously collided with
+              # the quotes wrapping it when this was built as one eval'd string.
               if [[ -n "$INPUT_TEST_PRS" ]]; then
-                # Write JSON to a temp file to avoid shell quoting issues
-                printf '%s' "$INPUT_TEST_PRS" > /tmp/test-prs.json
-                TRANSITION_CMD="$TRANSITION_CMD --test-prs \"$(cat /tmp/test-prs.json)\""
+                node scripts/cloudant/save.js transition \
+                  --id "$INPUT_ID" \
+                  --state "$INPUT_STATE" \
+                  --test-prs "$INPUT_TEST_PRS" > /dev/null
+              else
+                node scripts/cloudant/save.js transition \
+                  --id "$INPUT_ID" \
+                  --state "$INPUT_STATE" > /dev/null
               fi
-              eval "$TRANSITION_CMD" > /dev/null
               # Return the updated document
               RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
               ;;
