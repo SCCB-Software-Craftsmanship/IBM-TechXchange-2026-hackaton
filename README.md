@@ -73,6 +73,7 @@ production change against 729 lines of feature code** — a 4.4% overhead for ma
 | --- | --- |
 | IBM Bob | Runs the skills and orchestrators |
 | `gh` CLI, authenticated | Every workflow is `workflow_dispatch` only |
+| **Write access to this repo** | Not the same as being authenticated — `gh auth status` can pass while `gh workflow run` still fails with a permission error. Ask an org owner to add you as a collaborator (or to the GitHub Team that manages access). Nothing below works without this. |
 | Node.js ≥ 22 | Cloudant CLI scripts and their tests |
 | [OpenTofu](https://opentofu.org) ≥ 1.6 | Only if you provision your own Cloudant |
 
@@ -87,8 +88,14 @@ Authenticate and install the skills into your Bob context:
 
 ```bash
 gh auth login
+gh auth status
 bash scripts/install-skills.sh
 ```
+
+You do not need your own Cloudant credentials for any of the above — the tracker
+and query workflows read `CLOUDANT_URL`/`CLOUDANT_API_KEY` from repository secrets,
+never from anything in your clone. Credentials are only needed locally if you run
+`scripts/cloudant/*.js` directly or run the site with live data (see `.env.example`).
 
 Then run onboarding once, from inside Bob:
 
@@ -185,9 +192,12 @@ The pipeline has run against four pull requests across four repositories, includ
 [one on Memos](https://github.com/usememos/memos/pull/6214) — a 62k-star open-source project, not
 our own code. Six barriers have been found and removed.
 
-No run has yet reached `tests_implemented`, so the generation half of the pipeline is written and
-wired but has not produced a merged test suite. There are no coverage numbers anywhere in this
-repository for that reason.
+One run has completed the full lifecycle end to end — `tests_not_yet_implemented` through
+`tests_verified` — with a real merged test PR on the other side of `generate-tests`. A second run
+carries genuine `testability-prep` metrics (barriers found/fixed, not a placeholder) for the first
+time; earlier runs predate that field and still show as unset rather than a guessed value. Test
+coverage percentages are not tracked yet — only barrier and seam counts are, since that's what
+`testability-prep` can honestly compute on its own.
 
 ## Team
 

@@ -43,7 +43,7 @@ npm test`,
         code: `gh auth login
 gh auth status
 gh extension install github/gh-actions`,
-        note: 'main.orchestrate.md blocks on this check before it does anything else.',
+        note: 'main.orchestrate.md blocks on this check before it does anything else. Being authenticated is not the same as having write access — gh auth status can pass while workflow_dispatch still fails with a permission error. If that happens, ask an org owner to add you as a collaborator (or to whichever GitHub Team manages repo access) on SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton.',
       },
       {
         id: 'skills',

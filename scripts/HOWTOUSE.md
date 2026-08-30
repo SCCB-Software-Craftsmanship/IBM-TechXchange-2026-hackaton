@@ -365,6 +365,6 @@ node scripts/cloudant/save.js transition \
 |---|---|
 | `gh` CLI authenticated | `gh auth login` |
 | `gh` Actions extension | `gh extension install github/gh-actions` |
-| Write access to this repo | Required to trigger `workflow_dispatch` |
+| Write access to this repo | Required to trigger `workflow_dispatch` — being authenticated is not enough. `gh auth status` can pass while `gh workflow run` still fails with a permission error. Ask an org owner to add you as a collaborator (or to the GitHub Team that manages repo access). |
 | Node.js ≥ 22 (local scripts only) | `node --version` |
 | `.env` file (local scripts only) | `cp .env.example .env` and fill in `CLOUDANT_URL` + `CLOUDANT_API_KEY` |
