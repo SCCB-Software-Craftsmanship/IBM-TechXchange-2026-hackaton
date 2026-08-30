@@ -203,6 +203,137 @@ time; earlier runs predate that field and still show as unset rather than a gues
 coverage percentages are not tracked yet — only barrier and seam counts are, since that's what
 `testability-prep` can honestly compute on its own.
 
+
+## Why this solution fits the judging criteria
+
+| Criterion | The strongest evidence |
+| --- | --- |
+| Completeness and feasibility | It has already run on a pull request in a 62,000-star open-source project we do not own |
+| Creativity and innovation | It fixes testability *before* generating tests, instead of generating tests against untestable code |
+| Design and usability | One command, output as a pull request; onboarding is once per repository and idempotent |
+| Effectiveness and efficiency | 4.4% — the measured production-code cost of making four approved PRs testable |
+
+---
+
+### Completeness and feasibility
+
+**This is not a prototype pointed at a toy repository.** The pipeline has run on four approved pull
+requests across four repositories, and every run is a document in Cloudant right now:
+
+| Pull request | Project | Barriers removed | Seam PR |
+| --- | --- | --- | --- |
+| [memos#6214](https://github.com/usememos/memos/pull/6214) | Memos — 62k-star OSS, not our code | B1 | `+16 / −0`, 6 files |
+| [memos#5](https://github.com/SCCB-Software-Craftsmanship/memos/pull/5) | Memos fork | B1 | `+16 / −4`, 1 file |
+| [maybe#1](https://github.com/SCCB-Software-Craftsmanship/maybe/pull/1) | Maybe — Rails | B4, B7 | fixed inline |
+| [#7](https://github.com/SCCB-Software-Craftsmanship/IBM-TechXchange-2026-hackaton/pull/7) | This repository | B2, B3 | fixed inline |
+
+The first row is the one that matters. That pull request was written by an outside contributor, in a
+codebase nobody on this team has worked in. Bob read a diff none of us wrote, found what blocked a
+test, and opened the fix.
+
+**IBM technology is load-bearing, not decorative:**
+
+- **IBM Bob** runs every skill and orchestrator — the whole pipeline is Bob skills, not a wrapper
+  around a model API.
+- **IBM Cloudant** is the run store *and* the architectural hand-off point between two agents that
+  never communicate directly.
+- **IBM Cloud IAM** issues the service key the GitHub Actions workflows authenticate with.
+- The Cloudant instance and its IAM key are **OpenTofu-managed** in [`iac/`](iac) — reproducible
+  infrastructure, not resources clicked together in a console.
+
+**On feasibility in a real team:** onboarding is idempotent, so re-running it on a prepared project
+changes nothing. Cloudant credentials live in repository secrets and never reach a developer machine —
+every workflow is `workflow_dispatch` only. State transitions are forward-only and enforced in code:
+[`transitionRun`](scripts/cloudant/testabilityRun.js) throws on any backwards or skipping move, and
+that behaviour is covered by unit tests.
+
+**What is not finished, stated plainly:** no run has yet reached `tests_implemented`. The generation
+orchestrator is written and wired to the same database, but it has not yet produced a merged test
+suite. We would rather show that gap than paper over it.
+
+---
+
+### Creativity and innovation
+
+**Most AI testing tools generate tests against code as it is. That is the wrong order.** If the code
+is not testable, the generated tests are either shallow or they mock so heavily that they assert
+nothing about the behaviour that changed. You get a green suite and no signal.
+
+We insert a stage *before* generation that asks what blocks a test and removes it first, so the
+generation agent writes against seams that actually exist.
+
+Three decisions make it work:
+
+1. **A rule that constrains the agent, not just prompts it.**
+
+   > Do not introduce an abstraction, layer, interface, or dependency injection, and do not add
+   > test-only code to production, unless the current implementation demonstrably blocks a test
+   > required for the changed behaviour.
+
+   Every proposed change must name, in one sentence, the test it unblocks. If it cannot, the change
+   is not made. This is what stops an agent refactoring a codebase simply because it can — the
+   failure mode that makes teams distrust AI code changes.
+
+2. **Evidence-gated analysis.** The barrier checklist is *derived* per repository from what is
+   actually in it — its stack, its libraries, its existing test patterns — not filtered down from a
+   fixed list. Any observation a skill cannot cite evidence for is dropped rather than guessed. A
+   dimension with no evidence produces no section; silence is correct.
+
+3. **A database as the seam between agents.** `testability-prep` and `generate-tests` never talk to
+   each other. One writes a document, the other claims it atomically. Either can be rerun, replaced,
+   or scaled independently without touching the other — and the claim is what makes running several
+   generation agents at once safe.
+
+---
+
+### Design and usability
+
+**For the engineer, the interface is one line:**
+
+```bash
+bob -p "run testability-prep on PR #42"
+```
+
+The output arrives as a pull request against the feature branch — reviewed in the place engineers
+already review code, with no new tool to learn and no dashboard they are required to visit.
+
+**Adoption cost is one onboarding run per repository**, and it is idempotent. There is no
+configuration file to write or maintain, because the skills read the project's own conventions
+instead of imposing ours. That is why the same pipeline ran unchanged across **three languages and
+three test frameworks** — TypeScript/React, Ruby on Rails, and Node.js — with no per-repo setup.
+
+**For everyone else, there is a dashboard.** [`site/`](site) is a Nuxt application reading the same
+documents the agents write: a board showing where each pull request sits in the four states, which
+barriers were removed, and the seam PR that removed them. A tech lead can answer "has this been
+tested yet?" without reading a single log.
+
+---
+
+### Effectiveness and efficiency
+
+**The problem is real and universally ignored.** "Add tests before merging" is the most common
+unactioned comment in code review — not because anyone disagrees, but because by the time it is
+said, the code is already shaped to make testing expensive. A clock read inside a function body. A
+client constructed instead of passed. A button with nothing a test can grab. The fix is not more
+discipline; it is moving the question earlier and giving it to something that never gets tired of
+asking.
+
+**The impact is measurable, and we measured it.** Across every run tracked so far: **32 lines of
+production change against 729 lines of feature code — a 4.4% overhead** to make those changes
+testable. That ratio is the argument. Testability is usually rejected on the assumption it means
+large speculative refactors; here it is a number, taken from the real GitHub diffs.
+
+**The pipeline is efficient in its own right.** The `analyze-tests` orchestrator loads shared project
+context once in the parent agent and dispatches two subagents with `fork_context`, paying the token
+cost of that context exactly once instead of twice. `generate-tests` spawns one subagent per test
+pyramid layer, in parallel.
+
+**It scales because nothing in it is specific to us.** Barriers are derived per repository, so a new
+codebase needs no rules written for it — demonstrated across three unrelated projects in three
+languages. Cloudant behaves as a work queue: add generation agents and throughput rises, while atomic
+claiming guarantees two agents never write tests for the same pull request. The natural next step is
+a `pull_request` trigger on approval, at which point no human has to remember to run anything at all.
+
 ## Team
 
 | | Role |
