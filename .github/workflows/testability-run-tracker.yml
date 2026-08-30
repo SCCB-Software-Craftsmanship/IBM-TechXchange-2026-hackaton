@@ -1,13 +1,8 @@
 name: Testability Run Tracker
 
 on:
-  # Trigger automatically when testability-prep opens its child PR
-  pull_request:
-    types: [opened]
-    branches:
-      - '**'  # any base branch — we filter on head ref name below
-
-  # Manual dispatch: run for any PR (no child PR needed) or to re-save a run
+  # Exclusively manual — called by testability-prep (Step 12) via `gh workflow run`.
+  # No automatic triggers to prevent duplicate records from re-pushes or retries.
   workflow_dispatch:
     inputs:
       pr_link:
@@ -35,11 +30,6 @@ jobs:
     name: Save TestabilityRun to Cloudant
     runs-on: ubuntu-latest
 
-    # For the pull_request trigger: only run when the head branch is a testability/* branch
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      startsWith(github.head_ref, 'testability/')
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -54,48 +44,19 @@ jobs:
         run: npm ci
 
       # -----------------------------------------------------------------------
-      # Resolve inputs — pull_request event vs workflow_dispatch
+      # Pass workflow_dispatch inputs straight through to subsequent steps
       # -----------------------------------------------------------------------
       - name: Resolve run inputs
         id: inputs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # For pull_request events, reconstruct the values from PR metadata
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-          # For workflow_dispatch, pass through the inputs directly
-          INPUT_PR_LINK: ${{ inputs.pr_link }}
-          INPUT_TESTABILITY_PR_LINK: ${{ inputs.testability_pr_link }}
-          INPUT_BARRIERS: ${{ inputs.barriers_resolved }}
-          INPUT_SUMMARY: ${{ inputs.summary }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Extract original PR link from the child PR body
-            # testability-prep embeds "Original PR: #N <url>" in its PR body
-            ORIGINAL_PR=$(echo "$PR_BODY" | grep -oP 'https://github\.com[^\s)]+/pull/[0-9]+' | head -1)
-            if [ -z "$ORIGINAL_PR" ]; then
-              # Fall back to the base branch — find the PR whose head = base of this PR
-              ORIGINAL_PR=$(gh pr list --base "$PR_BASE_REF" --state open --json url --jq '.[0].url' 2>/dev/null || echo "")
-            fi
-            if [ -z "$ORIGINAL_PR" ]; then
-              ORIGINAL_PR="unknown — see child PR $PR_HTML_URL"
-            fi
-
-            # Extract barriers from PR title (e.g. "testability(#12): fix B2, B3")
-            BARRIERS=$(echo "${{ github.event.pull_request.title }}" | grep -oP 'B[0-9]+' | tr '\n' ',' | sed 's/,$//')
-
-            echo "pr_link=$ORIGINAL_PR"                   >> "$GITHUB_OUTPUT"
-            echo "testability_pr_link=$PR_HTML_URL"       >> "$GITHUB_OUTPUT"
-            echo "barriers=${BARRIERS:-none}"             >> "$GITHUB_OUTPUT"
-            echo "summary=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "pr_link=$INPUT_PR_LINK"                 >> "$GITHUB_OUTPUT"
-            echo "testability_pr_link=$INPUT_TESTABILITY_PR_LINK" >> "$GITHUB_OUTPUT"
-            echo "barriers=$INPUT_BARRIERS"               >> "$GITHUB_OUTPUT"
-            echo "summary=$INPUT_SUMMARY"                 >> "$GITHUB_OUTPUT"
-          fi
+          echo "pr_link=${{ inputs.pr_link }}"                         >> "$GITHUB_OUTPUT"
+          echo "testability_pr_link=${{ inputs.testability_pr_link }}" >> "$GITHUB_OUTPUT"
+          echo "barriers=${{ inputs.barriers_resolved }}"              >> "$GITHUB_OUTPUT"
+          # Summary can be multi-line — write via a heredoc delimiter
+          EOF_DELIM=$(openssl rand -hex 8)
+          echo "summary<<$EOF_DELIM"     >> "$GITHUB_OUTPUT"
+          echo "${{ inputs.summary }}"   >> "$GITHUB_OUTPUT"
+          echo "$EOF_DELIM"              >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
       # Bootstrap DB (idempotent — safe to run every time)
