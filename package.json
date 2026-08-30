@@ -4,6 +4,8 @@
   "description": "VibeBobbing — IBM Cloud scripts (Cloudant, Code Engine, etc.)",
   "type": "module",
   "scripts": {
+    "test": "node --test scripts/cloudant/__tests__/*.test.js",
+    "test:watch": "node --test --watch scripts/cloudant/__tests__/*.test.js",
     "cloudant:bootstrap": "node scripts/cloudant/bootstrap.js",
     "cloudant:save": "node scripts/cloudant/save.js",
     "cloudant:list": "node scripts/cloudant/save.js list"

@@ -1,5 +1,6 @@
 /**
  * save.js — CLI for creating, updating, and listing TestabilityRun records.
+ * Exports parseArgs and command functions for testing.
  *
  * Commands:
  *
@@ -22,6 +23,7 @@
  *     node scripts/cloudant/save.js get --id <doc-id>
  */
 
+import { fileURLToPath } from 'url';
 import client from './client.js';
 import { createTestabilityRun, transitionRun, RunState } from './testabilityRun.js';
 
@@ -30,7 +32,7 @@ const DB = 'testability-runs';
 // ---------------------------------------------------------------------------
 // Tiny arg parser (no external dep)
 // ---------------------------------------------------------------------------
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {};
   let i = 0;
   while (i < argv.length) {
@@ -123,22 +125,23 @@ async function cmdGet(args) {
   return doc;
 }
 
+export const commands = { create: cmdCreate, transition: cmdTransition, list: cmdList, get: cmdGet };
+
 // ---------------------------------------------------------------------------
-// Entry point
+// Entry point — only runs when executed directly, not when imported in tests
 // ---------------------------------------------------------------------------
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const args = parseArgs(process.argv.slice(2));
+  const command = args['_command'];
 
-const args = parseArgs(process.argv.slice(2));
-const command = args['_command'];
+  if (!command || !commands[command]) {
+    console.error(`Usage: node scripts/cloudant/save.js <create|transition|list|get> [options]`);
+    console.error(`Valid states: ${Object.values(RunState).join(', ')}`);
+    process.exit(1);
+  }
 
-const commands = { create: cmdCreate, transition: cmdTransition, list: cmdList, get: cmdGet };
-
-if (!command || !commands[command]) {
-  console.error(`Usage: node scripts/cloudant/save.js <create|transition|list|get> [options]`);
-  console.error(`Valid states: ${Object.values(RunState).join(', ')}`);
-  process.exit(1);
+  commands[command](args).catch((err) => {
+    console.error('Error:', err.message ?? err);
+    process.exit(1);
+  });
 }
-
-commands[command](args).catch((err) => {
-  console.error('Error:', err.message ?? err);
-  process.exit(1);
-});
