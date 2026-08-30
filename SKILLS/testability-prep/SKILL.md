@@ -11,8 +11,8 @@ changed or new piece of behavior in the diff:
 > What prevents an automated test from observing, controlling, or isolating this behavior?
 
 It then makes the **minimum production code change** needed to remove each real barrier and opens
-a child PR against the original branch with a thorough report. **A child PR is always opened**,
-even when no code changes are needed — in that case the report file itself is the only commit.
+a child PR against the original branch with a thorough report. If no barrier is found, no PR is
+opened.
 
 ---
 
@@ -193,6 +193,8 @@ Only changes that survive this gate proceed to implementation.
 
 ### Step 8 — Implement and commit
 
+Use `apply_diff` or `write_file` to apply each surviving change to the affected files.
+
 Branch off from the **PR's head branch** (not `main`):
 
 ```bash
@@ -201,11 +203,7 @@ git checkout <pr-head-branch>
 git checkout -b testability/<pr-head-branch>
 ```
 
-**If code changes survived the gate (Step 7):**
-
-Use `apply_diff` or `write_file` to apply each surviving change to the affected files. Stage
-and commit — one commit per barrier is preferred, but multiple barriers with the same root
-cause may be grouped:
+Then stage and commit:
 
 ```bash
 git add <changed files>
@@ -216,21 +214,8 @@ Unblocks: <one-sentence description of the now-possible test>
 PR: #<original PR number>"
 ```
 
-**If no code changes survived the gate (zero barriers fixed):**
-
-The report file from Step 9 is the only deliverable. Write it first (Step 9), then commit
-it as the sole change:
-
-```bash
-git add .testability/analysis-pr-<N>.md
-git commit -m "testability(#<N>): analysis report — no production changes needed
-
-All barriers evaluated; none required a production code change.
-The behavior introduced can be observed, controlled, and isolated
-without modification. See report for full analysis."
-```
-
-In both cases, push the branch:
+One commit per barrier is preferred, but multiple barriers with the same root cause may be
+grouped into a single commit. Push the branch:
 
 ```bash
 git push origin testability/<pr-head-branch>
@@ -238,11 +223,7 @@ git push origin testability/<pr-head-branch>
 
 ### Step 9 — Compose the PR body
 
-Write the analysis report to **two places** using `write_file`:
-1. `/tmp/testability-pr-body.md` — used as the PR body by `gh pr create`.
-2. `.testability/analysis-pr-<N>.md` in the repository — committed to the branch so the
-   report is permanently preserved in version control alongside the code it analyses.
-   Create the `.testability/` directory if it does not exist.
+Write a thorough analysis report to `/tmp/testability-pr-body.md` using `write_file`.
 
 The report must contain the following sections:
 
@@ -285,20 +266,22 @@ If no barriers were found at all, state that explicitly here.>
 
 ### Step 10 — Open the child PR
 
-Always open a PR — whether or not code changes were made.
+Call `execute_command` with:
 
 ```bash
 gh pr create \
   --base <pr-head-branch> \
-  --title "testability(#<N>): <short description or 'analysis report — no changes needed'>" \
+  --title "testability(#<N>): <short description of barriers removed>" \
   --body-file /tmp/testability-pr-body.md
 ```
 
-The base must be the **original PR's head branch**, not `main`. This ensures the analysis is
-reviewed alongside the feature code it covers.
+The base must be the **original PR's head branch**, not `main`. This ensures the testability
+fix is reviewed alongside the feature code it enables testing for.
 
-- **Barriers fixed:** title describes the barriers removed (e.g. `testability(#8): remove time.Now coupling in memo service`).
-- **No barriers fixed:** title is `testability(#<N>): analysis report — no production changes needed`. The PR contains only the `.testability/analysis-pr-<N>.md` report file. This gives reviewers and downstream agents a permanent, version-controlled record of why no changes were required.
+If no barriers were found (and the gate check passed with zero surviving changes), do **not**
+open a PR. Report:
+> No testability barriers found in this diff. The behavior introduced can be observed,
+> controlled, and isolated by an automated test without any production code change.
 
 ### Step 11 — Final summary
 
@@ -316,8 +299,7 @@ Testability branch: testability/<original-branch>
   (or: No barriers found)
 
 ### Child PR
-  <URL>
-  (report committed to: .testability/analysis-pr-<N>.md)
+  <URL> (or: not opened — no barriers found)
 
 ### Testability improvement metrics
   Barriers found:    <N>
