@@ -113,6 +113,14 @@ const toggle = (id: string) => {
             <CodeBlock :code="step.code" :id="`${track.id}-${step.id}`" />
           </div>
 
+          <div v-if="step.prompt" class="mt-4">
+            <CodeBlock
+              :code="step.prompt"
+              :id="`${track.id}-${step.id}-prompt`"
+              variant="prompt"
+            />
+          </div>
+
           <p
             v-if="step.note"
             class="mt-3 border-l-2 pl-3 text-[12.5px] leading-snug"
