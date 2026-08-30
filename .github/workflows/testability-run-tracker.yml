@@ -53,21 +53,35 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Resolve run inputs
         id: inputs
+        # Every input is read from env, never spliced as ${{ inputs.x }} directly into
+        # the shell script below. GitHub Actions substitutes ${{ }} expressions into the
+        # run: text BEFORE bash parses it — a value containing a literal double quote
+        # (guaranteed for JSON, possible for free-text summaries) breaks out of the
+        # echo "..." string at that substitution step, not at shell-parse time, so even
+        # quoting the placeholder doesn't help. Routing through env: is the only fix;
+        # $VAR expansion happens in bash, where normal quoting rules actually apply.
+        env:
+          RAW_PR_LINK: ${{ inputs.pr_link }}
+          RAW_TESTABILITY_PR_LINK: ${{ inputs.testability_pr_link }}
+          RAW_BARRIERS: ${{ inputs.barriers_resolved }}
+          RAW_SUMMARY: ${{ inputs.summary }}
+          RAW_META: ${{ inputs.meta }}
         run: |
-          echo "pr_link=${{ inputs.pr_link }}"                         >> "$GITHUB_OUTPUT"
-          echo "testability_pr_link=${{ inputs.testability_pr_link }}" >> "$GITHUB_OUTPUT"
-          echo "barriers=${{ inputs.barriers_resolved }}"              >> "$GITHUB_OUTPUT"
+          echo "pr_link=$RAW_PR_LINK"                 >> "$GITHUB_OUTPUT"
+          echo "testability_pr_link=$RAW_TESTABILITY_PR_LINK" >> "$GITHUB_OUTPUT"
+          echo "barriers=$RAW_BARRIERS"                >> "$GITHUB_OUTPUT"
+
           # Summary and meta can contain characters unsafe for a single output line
           # (quotes, newlines) — write both via a heredoc delimiter, never interpolated
           # into a command string later (that's what caused the --test-prs quoting bug).
           EOF_DELIM=$(openssl rand -hex 8)
           echo "summary<<$EOF_DELIM"     >> "$GITHUB_OUTPUT"
-          echo "${{ inputs.summary }}"   >> "$GITHUB_OUTPUT"
+          echo "$RAW_SUMMARY"            >> "$GITHUB_OUTPUT"
           echo "$EOF_DELIM"              >> "$GITHUB_OUTPUT"
 
           META_DELIM=$(openssl rand -hex 8)
           echo "meta<<$META_DELIM"       >> "$GITHUB_OUTPUT"
-          echo "${{ inputs.meta }}"      >> "$GITHUB_OUTPUT"
+          echo "$RAW_META"               >> "$GITHUB_OUTPUT"
           echo "$META_DELIM"             >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
