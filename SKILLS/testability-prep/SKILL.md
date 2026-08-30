@@ -199,9 +199,11 @@ Branch off from the **PR's head branch** (not `main`):
 
 ```bash
 git fetch origin
-git checkout <pr-head-branch>
-git checkout -b testability/<pr-head-branch>
+git checkout -b testability/<pr-head-branch> origin/<pr-head-branch>
 ```
+
+Using `origin/<pr-head-branch>` as the start point ensures the local branch tracks the
+remote even if it has never been checked out locally before.
 
 Then stage and commit:
 
