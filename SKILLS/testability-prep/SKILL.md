@@ -199,9 +199,11 @@ Branch off from the **PR's head branch** (not `main`):
 
 ```bash
 git fetch origin
-git checkout <pr-head-branch>
-git checkout -b testability/<pr-head-branch>
+git checkout -b testability/<pr-head-branch> origin/<pr-head-branch>
 ```
+
+Using `origin/<pr-head-branch>` as the start point ensures the local branch tracks the
+remote even if it has never been checked out locally before.
 
 Then stage and commit:
 
@@ -315,3 +317,46 @@ Testability branch: testability/<original-branch>
   Overall assessment: <one sentence — e.g. "Two time-coupling barriers removed; the
   PR's core logic is now fully unit-testable without real-clock dependency.">
 ```
+
+---
+
+### Step 12 — Save run to Cloudant via GitHub Actions
+
+After printing the summary, persist this run to the database by dispatching the
+`testability-run-tracker` workflow. This is the **only place** this workflow is triggered —
+never call it more than once per skill run.
+
+1. Collect the four fields from the summary already printed in Step 11:
+   - `PR_LINK` — the URL of the original approved PR
+   - `TESTABILITY_PR_LINK` — the child PR URL, or empty string if no PR was opened
+   - `BARRIERS` — comma-separated barrier IDs (e.g. `B2,B3`), or empty string if none
+   - `SUMMARY` — the "Overall assessment" sentence from the metrics block
+
+2. Write the summary string to a temp file to avoid shell quoting issues:
+   ```bash
+   printf '%s' "<overall assessment sentence>" > /tmp/testability-summary.txt
+   ```
+
+3. Call `execute_command` with:
+   ```bash
+   gh workflow run testability-run-tracker.yml \
+     --ref main \
+     --field pr_link="<PR_LINK>" \
+     --field testability_pr_link="<TESTABILITY_PR_LINK>" \
+     --field barriers_resolved="<BARRIERS>" \
+     --field summary="$(cat /tmp/testability-summary.txt)"
+   ```
+
+4. If the command exits 0, print:
+   > ✓ Testability run queued in GitHub Actions — record will appear in Cloudant within ~1 min.
+
+   If it exits non-zero, print the error output and add:
+   > ⚠️ Could not dispatch workflow. Run manually via the GitHub Actions UI or:
+   > ```
+   > gh workflow run testability-run-tracker.yml --ref main \
+   >   --field pr_link="<PR_LINK>" \
+   >   --field testability_pr_link="<TESTABILITY_PR_LINK>" \
+   >   --field barriers_resolved="<BARRIERS>" \
+   >   --field summary="<SUMMARY>"
+   > ```
+   > The skill run is otherwise complete — no retry needed for the analysis itself.

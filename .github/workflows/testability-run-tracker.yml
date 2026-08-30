@@ -1,0 +1,107 @@
+name: Testability Run Tracker
+
+on:
+  # Exclusively manual — called by testability-prep (Step 12) via `gh workflow run`.
+  # No automatic triggers to prevent duplicate records from re-pushes or retries.
+  workflow_dispatch:
+    inputs:
+      pr_link:
+        description: 'URL of the original approved PR'
+        required: true
+        type: string
+      testability_pr_link:
+        description: 'URL of the child testability PR (leave blank if none was opened)'
+        required: false
+        type: string
+        default: ''
+      barriers_resolved:
+        description: 'Comma-separated barrier IDs resolved (e.g. B2,B3) or leave blank'
+        required: false
+        type: string
+        default: ''
+      summary:
+        description: 'Prose summary from testability-prep Step 11'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  save-testability-run:
+    name: Save TestabilityRun to Cloudant
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # -----------------------------------------------------------------------
+      # Pass workflow_dispatch inputs straight through to subsequent steps
+      # -----------------------------------------------------------------------
+      - name: Resolve run inputs
+        id: inputs
+        run: |
+          echo "pr_link=${{ inputs.pr_link }}"                         >> "$GITHUB_OUTPUT"
+          echo "testability_pr_link=${{ inputs.testability_pr_link }}" >> "$GITHUB_OUTPUT"
+          echo "barriers=${{ inputs.barriers_resolved }}"              >> "$GITHUB_OUTPUT"
+          # Summary can be multi-line — write via a heredoc delimiter
+          EOF_DELIM=$(openssl rand -hex 8)
+          echo "summary<<$EOF_DELIM"     >> "$GITHUB_OUTPUT"
+          echo "${{ inputs.summary }}"   >> "$GITHUB_OUTPUT"
+          echo "$EOF_DELIM"              >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # Bootstrap DB (idempotent — safe to run every time)
+      # -----------------------------------------------------------------------
+      - name: Bootstrap Cloudant database
+        env:
+          CLOUDANT_URL: ${{ secrets.CLOUDANT_URL }}
+          CLOUDANT_API_KEY: ${{ secrets.CLOUDANT_API_KEY }}
+        run: node scripts/cloudant/bootstrap.js
+
+      # -----------------------------------------------------------------------
+      # Save the TestabilityRun record
+      # -----------------------------------------------------------------------
+      - name: Save TestabilityRun record
+        id: save
+        env:
+          CLOUDANT_URL: ${{ secrets.CLOUDANT_URL }}
+          CLOUDANT_API_KEY: ${{ secrets.CLOUDANT_API_KEY }}
+          SAVE_PR_LINK: ${{ steps.inputs.outputs.pr_link }}
+          SAVE_TESTABILITY_PR_LINK: ${{ steps.inputs.outputs.testability_pr_link }}
+          SAVE_BARRIERS: ${{ steps.inputs.outputs.barriers }}
+          SAVE_SUMMARY: ${{ steps.inputs.outputs.summary }}
+        run: |
+          RESULT=$(node scripts/cloudant/save.js create \
+            --pr-link "$SAVE_PR_LINK" \
+            --testability-pr-link "$SAVE_TESTABILITY_PR_LINK" \
+            --barriers "$SAVE_BARRIERS" \
+            --summary "$SAVE_SUMMARY")
+          echo "$RESULT"
+          DOC_ID=$(echo "$RESULT" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).id))")
+          echo "doc_id=$DOC_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        env:
+          SUMMARY_DOC_ID: ${{ steps.save.outputs.doc_id }}
+          SUMMARY_PR_LINK: ${{ steps.inputs.outputs.pr_link }}
+          SUMMARY_TESTABILITY_PR_LINK: ${{ steps.inputs.outputs.testability_pr_link }}
+          SUMMARY_BARRIERS: ${{ steps.inputs.outputs.barriers }}
+        run: |
+          echo "### ✅ TestabilityRun saved to Cloudant" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Document ID | \`$SUMMARY_DOC_ID\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Initial state | \`tests_not_yet_implemented\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR link | $SUMMARY_PR_LINK |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Testability PR | $SUMMARY_TESTABILITY_PR_LINK |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Barriers | $SUMMARY_BARRIERS |" >> "$GITHUB_STEP_SUMMARY"
