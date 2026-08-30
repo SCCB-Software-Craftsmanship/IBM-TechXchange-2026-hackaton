@@ -1,3 +1,8 @@
+---
+# This is an orchestration prompt, not a skill.
+# disable-model-invocation: true
+---
+
 # analyze-tests.orchestrate.md
 
 > **This is a system prompt, not a skill.**
