@@ -41,6 +41,44 @@ Phase 6 — Advance run state         → transition to tests_implemented in Clo
 
 ---
 
+## Phase 0 — Prerequisites
+
+Before anything else, verify the two tools this prompt calls directly.
+
+### 0.1 — Verify gh CLI is authenticated
+
+Call `execute_command` with:
+
+```bash
+gh auth status
+```
+
+If the command fails or shows "not logged in", stop and report:
+> ⚠️ `gh` CLI is not authenticated. Run `gh auth login` and re-run this prompt.
+
+BLOCK — do not proceed.
+
+### 0.2 — Verify Node.js is available
+
+Call `execute_command` with:
+
+```bash
+node --version && npm ls --depth=0 2>/dev/null | head -1
+```
+
+This prompt calls `node scripts/cloudant/save.js` directly in Phase 6. Node must be
+present and `npm install` must have been run.
+
+If `node` is not found, stop and report:
+> ⚠️ Node.js is not installed or not on PATH. Install Node.js 22+ and re-run.
+
+If the `npm ls` check indicates no `node_modules`, stop and report:
+> ⚠️ Node dependencies not installed. Run `npm ci` from the repository root and re-run.
+
+BLOCK — do not proceed on either failure.
+
+---
+
 ## Phase 1 — Discover and claim the next run
 
 ### 1.1 — List unclaimed runs

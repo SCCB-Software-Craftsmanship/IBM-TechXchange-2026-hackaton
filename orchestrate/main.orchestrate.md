@@ -23,8 +23,6 @@
 Phase 0 — Prerequisites & tooling setup
   0.1  Verify gh CLI authenticated
   0.2  Install Bob skills (scripts/install-skills.sh)
-  0.3  Bootstrap Cloudant database (scripts/cloudant/bootstrap.js)
-  0.4  Verify Node.js + npm dependencies installed
 
 Phase 1 — Check for analyze-codebase output (skip if already present)
 
@@ -74,41 +72,6 @@ If the command fails, stop and report:
 > ⚠️ `scripts/install-skills.sh` failed. Check the output above and resolve the error.
 
 BLOCK — do not proceed.
-
-### 0.3 — Install Node.js dependencies
-
-Call `execute_command` with:
-
-```bash
-node --version && npm ci
-```
-
-If `node` is not found, stop and report:
-> ⚠️ Node.js is not installed. Install Node.js 22+ and re-run this prompt.
-
-If `npm ci` fails, stop and report:
-> ⚠️ `npm ci` failed. Check the error output above.
-
-BLOCK — do not proceed on either failure.
-
-### 0.4 — Bootstrap the Cloudant database
-
-Call `execute_command` with:
-
-```bash
-node scripts/cloudant/bootstrap.js
-```
-
-If it fails with a missing-env-var error, stop and report:
-> ⚠️ Cloudant credentials not set. Copy `.env.example` to `.env` and fill in
-> `CLOUDANT_URL` and `CLOUDANT_API_KEY`, then re-run this prompt.
-
-If it fails for any other reason, stop and report the error output.
-
-BLOCK — do not proceed on failure.
-
-If it succeeds (even with "already exists" messages), print:
-> ✓ Cloudant database bootstrapped.
 
 ---
 
@@ -188,8 +151,6 @@ After `analyze-tests` Phase 3 (confirm and report) completes, print:
 ### Phase 0 — Prerequisites
   ✓ gh CLI authenticated
   ✓ Bob skills installed  (~/.bob/skills/)
-  ✓ npm dependencies installed
-  ✓ Cloudant database bootstrapped
 
 ### Phase 1-2 — Codebase analysis
   <one of the following lines>
