@@ -24,8 +24,11 @@ The generated `.bob/TEST-SUITES.md` tells a test-generation skill:
 
 ## When it is used
 
-Run **after** `analyze-codebase` (recommended) and typically in parallel with
-`testability-heuristics` via the `analyze-tests.orchestrate.md` system prompt. The pipeline is:
+Run **after** `analyze-codebase` — the `.bob/TESTING.md`, `.bob/DEPENDENCIES.md`, and
+`.bob/CONVENTIONS.md` files it produces are required. The skill will not proceed without them.
+
+The typical invocation is via the `analyze-tests.orchestrate.md` system prompt, which runs
+`scan-test-suites` and `testability-heuristics` in parallel:
 
 ```
 analyze-codebase
@@ -34,9 +37,6 @@ analyze-tests.orchestrate.md
       ├── [parallel] scan-test-suites      → .bob/TEST-SUITES.md
       └── [parallel] testability-heuristics → .bob/HEURISTICS.md
 ```
-
-`scan-test-suites` can also be run standalone if only the test suite map is needed. It falls
-back to reading source files and manifests directly when `.bob/TESTING.md` does not exist.
 
 Re-run `scan-test-suites` whenever the project's test framework, test organisation, or primary
 test helper patterns change. The generated `.bob/TEST-SUITES.md` is overwritten completely on
@@ -60,8 +60,8 @@ cp -r SKILLS/scan-test-suites ~/.bob/skills/
 
 Bob will:
 
-1. Read `.bob/TESTING.md`, `.bob/DEPENDENCIES.md`, `.bob/CONVENTIONS.md` if they exist,
-   or fall back to direct manifest inspection.
+1. Verify `.bob/TESTING.md`, `.bob/DEPENDENCIES.md`, and `.bob/CONVENTIONS.md` exist —
+   if any are missing, it stops and asks you to run `/analyze-codebase` first.
 2. Load the reasoning guide from `SKILLS/scan-test-suites/test-suite-reader.md`.
 3. Glob for test files, read a representative sample (up to 8 files), and apply the six
    reading dimensions from the guide.
