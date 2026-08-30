@@ -1,0 +1,204 @@
+name: Testability Run Query
+
+on:
+  # Exclusively manual — called by agents or developers via `gh workflow run`.
+  # Returns TestabilityRun records from Cloudant based on the requested mode.
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: |
+          Query mode:
+            list-by-state  list all records with a specific state
+            list-all       list every record regardless of state
+            get            fetch a single record by id (full detail)
+            claim          fetch by id + transition to tests_in_progress (atomic claim)
+            transition     advance a record to an arbitrary next state (forward-only)
+        required: true
+        type: choice
+        options:
+          - list-by-state
+          - list-all
+          - get
+          - claim
+          - transition
+      state:
+        description: 'State to filter by (list-by-state) or target state (transition). One of: tests_not_yet_implemented | tests_in_progress | tests_implemented | tests_verified'
+        required: false
+        type: string
+        default: 'tests_not_yet_implemented'
+      id:
+        description: 'Document UUID (required for get, claim, and transition modes)'
+        required: false
+        type: string
+        default: ''
+      test_prs:
+        description: 'JSON map of pyramid layer → test PR URL (transition to tests_implemented only). e.g. {"unit":"https://...","integration":"https://"}'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  query-testability-runs:
+    name: Query TestabilityRuns in Cloudant
+    runs-on: ubuntu-latest
+
+    # Expose the JSON result as a job output so downstream jobs can consume it
+    outputs:
+      result: ${{ steps.query.outputs.result }}
+      count:  ${{ steps.query.outputs.count }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # -----------------------------------------------------------------------
+      # Validate inputs before touching the database
+      # -----------------------------------------------------------------------
+      - name: Validate inputs
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_STATE: ${{ inputs.state }}
+          INPUT_ID: ${{ inputs.id }}
+        run: |
+          if [[ "$INPUT_MODE" == "list-by-state" && -z "$INPUT_STATE" ]]; then
+            echo "::error::mode=list-by-state requires the 'state' input to be set."
+            exit 1
+          fi
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]] && [[ -z "$INPUT_ID" ]]; then
+            echo "::error::mode=$INPUT_MODE requires the 'id' input to be set."
+            exit 1
+          fi
+          if [[ "$INPUT_MODE" == "transition" && -z "$INPUT_STATE" ]]; then
+            echo "::error::mode=transition requires the 'state' input to be set."
+            exit 1
+          fi
+
+      # -----------------------------------------------------------------------
+      # Run the query
+      # -----------------------------------------------------------------------
+      - name: Run query
+        id: query
+        env:
+          CLOUDANT_URL: ${{ secrets.CLOUDANT_URL }}
+          CLOUDANT_API_KEY: ${{ secrets.CLOUDANT_API_KEY }}
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_STATE: ${{ inputs.state }}
+          INPUT_ID: ${{ inputs.id }}
+          INPUT_TEST_PRS: ${{ inputs.test_prs }}
+        run: |
+          case "$INPUT_MODE" in
+
+            list-by-state)
+              RESULT=$(node scripts/cloudant/save.js list --state "$INPUT_STATE")
+              ;;
+
+            list-all)
+              RESULT=$(node scripts/cloudant/save.js list)
+              ;;
+
+            get)
+              RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
+              ;;
+
+            claim)
+              # Fetch the full document first so we can show its current state
+              CURRENT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
+              CURRENT_STATE=$(echo "$CURRENT" | node -e \
+                "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).state))")
+
+              if [[ "$CURRENT_STATE" == "tests_in_progress" ]]; then
+                echo "::warning::Document $INPUT_ID is already in state tests_in_progress — skipping transition."
+                RESULT="$CURRENT"
+              else
+                # Transition to tests_in_progress
+                node scripts/cloudant/save.js transition \
+                  --id "$INPUT_ID" \
+                  --state "tests_in_progress" > /dev/null
+                # Return the updated document
+                RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
+              fi
+              ;;
+
+            transition)
+              # Pass test_prs straight through as a real shell argument — no string
+              # concatenation, no eval. The JSON's own quotes previously collided with
+              # the quotes wrapping it when this was built as one eval'd string.
+              if [[ -n "$INPUT_TEST_PRS" ]]; then
+                node scripts/cloudant/save.js transition \
+                  --id "$INPUT_ID" \
+                  --state "$INPUT_STATE" \
+                  --test-prs "$INPUT_TEST_PRS" > /dev/null
+              else
+                node scripts/cloudant/save.js transition \
+                  --id "$INPUT_ID" \
+                  --state "$INPUT_STATE" > /dev/null
+              fi
+              # Return the updated document
+              RESULT=$(node scripts/cloudant/save.js get --id "$INPUT_ID")
+              ;;
+          esac
+
+          # Write result to output (use heredoc delimiter for multi-line JSON)
+          EOF_DELIM=$(openssl rand -hex 8)
+          {
+            echo "result<<$EOF_DELIM"
+            echo "$RESULT"
+            echo "$EOF_DELIM"
+          } >> "$GITHUB_OUTPUT"
+
+          # Count — single doc modes always return 1
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]]; then
+            echo "count=1" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(echo "$RESULT" | node -e \
+              "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).length))")
+            echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------------------
+      # Print results to the job summary and stdout (agents can read logs)
+      # -----------------------------------------------------------------------
+      - name: Print results
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_STATE: ${{ inputs.state }}
+          INPUT_ID: ${{ inputs.id }}
+          QUERY_RESULT: ${{ steps.query.outputs.result }}
+          QUERY_COUNT: ${{ steps.query.outputs.count }}
+        run: |
+          echo "### 🔍 Testability Run Query Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mode | \`$INPUT_MODE\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$INPUT_MODE" == "list-by-state" ]]; then
+            echo "| State filter | \`$INPUT_STATE\` |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ "$INPUT_MODE" == "get" || "$INPUT_MODE" == "claim" || "$INPUT_MODE" == "transition" ]]; then
+            echo "| Document ID | \`$INPUT_ID\` |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "| Records returned | $QUERY_COUNT |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Full JSON result</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          echo "$QUERY_RESULT" | node -e \
+            "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(JSON.parse(d),null,2)))" \
+            >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "$QUERY_RESULT" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          # Also print to stdout so `gh run view --log` shows it
+          echo "=== RESULT ($QUERY_COUNT records) ==="
+          echo "$QUERY_RESULT" | node -e \
+            "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(JSON.parse(d),null,2)))" \
+            2>/dev/null || echo "$QUERY_RESULT"

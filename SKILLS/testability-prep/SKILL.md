@@ -56,8 +56,9 @@ The goal is to understand the problem this PR solves. Search the following sourc
 stopping as soon as a clear issue reference is found:
 
 1. **PR `closingIssuesReferences`** — call `execute_command` with
-   `gh pr view <number> --json closingIssuesReferences,title,body,headRefName,baseRefName,commits`
-   and inspect the `closingIssuesReferences` array.
+   `gh pr view <number> --json closingIssuesReferences,title,body,headRefName,baseRefName,commits,author`
+   and inspect the `closingIssuesReferences` array. Keep `title`, `headRefName`, and
+   `author.login` from this same call — Step 12 reuses them rather than re-fetching.
 2. **PR body** — scan the `body` field for patterns like `Closes #N`, `Fixes #N`, `Resolves #N`,
    or any bare `#N` reference.
 3. **PR title** — scan the `title` field for an issue number reference (e.g. `fix(#42): …`).
@@ -199,9 +200,11 @@ Branch off from the **PR's head branch** (not `main`):
 
 ```bash
 git fetch origin
-git checkout <pr-head-branch>
-git checkout -b testability/<pr-head-branch>
+git checkout -b testability/<pr-head-branch> origin/<pr-head-branch>
 ```
+
+Using `origin/<pr-head-branch>` as the start point ensures the local branch tracks the
+remote even if it has never been checked out locally before.
 
 Then stage and commit:
 
@@ -315,3 +318,66 @@ Testability branch: testability/<original-branch>
   Overall assessment: <one sentence — e.g. "Two time-coupling barriers removed; the
   PR's core logic is now fully unit-testable without real-clock dependency.">
 ```
+
+---
+
+### Step 12 — Save run to Cloudant via GitHub Actions
+
+After printing the summary, persist this run to the database by dispatching the
+`testability-run-tracker` workflow. This is the **only place** this workflow is triggered —
+never call it more than once per skill run.
+
+1. Collect the four base fields from the summary already printed in Step 11:
+   - `PR_LINK` — the URL of the original approved PR
+   - `TESTABILITY_PR_LINK` — the child PR URL, or empty string if no PR was opened
+   - `BARRIERS` — comma-separated barrier IDs (e.g. `B2,B3`), or empty string if none
+   - `SUMMARY` — the "Overall assessment" sentence from the metrics block
+
+2. Build the `meta` object from values already known by this point — Step 1's PR
+   metadata and Step 11's own barrier counts. Do not re-fetch or re-derive anything:
+   - `pr_number` — `<N>` from Step 1
+   - `pr_title` — `title` from Step 1
+   - `author` — `author.login` from Step 1
+   - `branch` — `headRefName` from Step 1
+   - `metrics.before.open_barriers` — Barriers found (Step 11)
+   - `metrics.after.open_barriers` — Barriers discarded (Step 11) — barriers found
+     that did not survive the Step 7 gate are still open; only fixed barriers close
+   - `metrics.after.seams` — Barriers fixed (Step 11) — every surviving fix is a seam
+     by the non-negotiable rule (Step 7): it exists only because it unblocks a named test
+
+   Leave out `metrics.before.testable_units`, `coverage`, `assertions`, `suite_runtime_s`,
+   and `tests` entirely — this skill has no way to know them. They belong to
+   `generate-tests`, which runs later and can report them honestly once tests exist.
+   Do not fill them with a guess.
+
+3. Write both the summary and the meta JSON to temp files to avoid shell quoting issues:
+   ```bash
+   printf '%s' "<overall assessment sentence>" > /tmp/testability-summary.txt
+   printf '%s' '{"pr_number":<N>,"pr_title":"<title>","author":"<author-login>","branch":"<headRefName>","metrics":{"before":{"open_barriers":<found>},"after":{"open_barriers":<discarded>,"seams":<fixed>}}}' > /tmp/testability-meta.json
+   ```
+
+4. Call `execute_command` with:
+   ```bash
+   gh workflow run testability-run-tracker.yml \
+     --ref main \
+     --field pr_link="<PR_LINK>" \
+     --field testability_pr_link="<TESTABILITY_PR_LINK>" \
+     --field barriers_resolved="<BARRIERS>" \
+     --field summary="$(cat /tmp/testability-summary.txt)" \
+     --field meta="$(cat /tmp/testability-meta.json)"
+   ```
+
+5. If the command exits 0, print:
+   > ✓ Testability run queued in GitHub Actions — record will appear in Cloudant within ~1 min.
+
+   If it exits non-zero, print the error output and add:
+   > ⚠️ Could not dispatch workflow. Run manually via the GitHub Actions UI or:
+   > ```
+   > gh workflow run testability-run-tracker.yml --ref main \
+   >   --field pr_link="<PR_LINK>" \
+   >   --field testability_pr_link="<TESTABILITY_PR_LINK>" \
+   >   --field barriers_resolved="<BARRIERS>" \
+   >   --field summary="<SUMMARY>" \
+   >   --field meta="<META_JSON>"
+   > ```
+   > The skill run is otherwise complete — no retry needed for the analysis itself.
