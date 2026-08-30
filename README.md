@@ -10,6 +10,8 @@ Cloudant, and hands off to a second agent that writes the tests the change was m
 Built for IBM TechXchange 2026 by [SCCB — Software Craftsmanship](https://github.com/SCCB-Software-Craftsmanship),
 on top of IBM Bob.
 
+**Live dashboard:** [site-six-blond-88.vercel.app](https://site-six-blond-88.vercel.app) — reads the real Cloudant database, no setup required to view it.
+
 ---
 
 ## Why
@@ -170,6 +172,8 @@ gh workflow run testability-run-query.yml --ref main \
 ```
 
 ## The dashboard
+
+**Live:** [site-six-blond-88.vercel.app](https://site-six-blond-88.vercel.app)
 
 [`site/`](site) is a Nuxt application that reads the same documents the agents write — the pipeline
 board, where each PR sits in the four states, and what each run changed.
