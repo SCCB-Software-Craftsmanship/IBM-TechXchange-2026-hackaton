@@ -145,23 +145,55 @@ If `TEST-SUITES.md` or `HEURISTICS.md` is missing, warn but continue:
 
 ## Phase 3 — Read the PR diffs
 
+Use the following procedure for **each** PR you need to diff (apply it twice: once for the
+feature PR, once for the testability PR if present). A merged PR returns an empty diff from
+`gh pr diff` — the correct source is the merge commit.
+
+### Diff procedure (apply per PR number)
+
+1. Call `execute_command` to check the PR's merge state:
+
+   ```bash
+   gh pr view <PR_NUMBER> --json state,mergeCommit --jq '{state:.state, sha:.mergeCommit.oid}'
+   ```
+
+2. **If `state` is `"OPEN"` or `"CLOSED"` (not yet merged or closed without merge):**
+
+   ```bash
+   gh pr diff <PR_NUMBER>
+   ```
+
+3. **If `state` is `"MERGED"`** — `gh pr diff` returns empty. Use the merge commit instead:
+
+   ```bash
+   git diff <SHA>^1 <SHA>
+   ```
+
+   Where `<SHA>` is the `mergeCommit.oid` returned in step 1.
+   `<SHA>^1` is the first parent — the commit on the base branch before the merge.
+
+   If the merge commit SHA is empty (squash merge recorded differently), fall back to:
+
+   ```bash
+   gh pr view <PR_NUMBER> --json commits \
+     --jq '[.commits[].oid] | last'
+   ```
+
+   Then diff that commit against its parent:
+
+   ```bash
+   git diff <LAST_COMMIT_SHA>^1 <LAST_COMMIT_SHA>
+   ```
+
 ### 3.1 — Feature PR diff
 
-Call `execute_command` with:
-
-```bash
-gh pr diff {{ORIGINAL_PR_NUMBER}}
-```
-
-Read the full diff. This is the source of truth for what behavior needs to be tested.
+Apply the diff procedure above to `{{ORIGINAL_PR_NUMBER}}`.
+This is the source of truth for what behavior needs to be tested.
 
 ### 3.2 — Testability PR diff (if present)
 
-If `{{TESTABILITY_PR_NUMBER}}` is non-empty, call `execute_command` with:
-
-```bash
-gh pr diff {{TESTABILITY_PR_NUMBER}}
-```
+If `{{TESTABILITY_PR_NUMBER}}` is non-empty, apply the diff procedure above to
+`{{TESTABILITY_PR_NUMBER}}`.
 
 This diff shows the seam changes (injected parameters, extracted functions) that make the
 behavior testable. Understanding these changes is essential for writing tests that use the
